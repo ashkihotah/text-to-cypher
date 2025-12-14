@@ -1,0 +1,40 @@
+# output_dir: args.output_dir,
+num_train_epochs: 2
+
+per_device_train_batch_size: 16
+# per_device_eval_batch_size: 16
+
+gradient_accumulation_steps: 8
+learning_rate: 0.0001
+weight_decay: 0.01
+warmup_ratio: 0.1
+# warmup_steps: 
+
+lr_scheduler_type: "linear" # "reduce_lr_on_plateau"
+# lr_scheduler_kwargs:
+#   factor: 0.5
+#   patience: 2
+#   threshold: 0.0005
+#   mode: "max"
+
+# eval_strategy: "epoch"
+save_strategy: "epoch"
+logging_strategy: "epoch"
+
+metric_for_best_model: "loss"
+greater_is_better: False
+# predict_with_generate:
+# generation_config:
+
+# load_best_model_at_end: True
+save_total_limit: 1
+
+dataloader_num_workers: 2
+
+report_to: "none"
+push_to_hub: False
+
+# fp16: args.fp16,
+# bf16: args.bf16,
+
+# remove_unused_columns: False

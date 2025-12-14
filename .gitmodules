@@ -1,0 +1,3 @@
+[submodule "tree-sitter-cypher"]
+	path = tree-sitter-cypher
+	url = https://github.com/taekwombo/tree-sitter-cypher

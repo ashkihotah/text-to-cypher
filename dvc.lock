@@ -1,0 +1,64 @@
+schema: '2.0'
+stages:
+  preprocess_cypherbench_train_set:
+    cmd: python text2cypher/preprocessing/cypherbench.py --input-path 
+      data/raw/text-to-cypher/CypherBench/train.json --schema-format-fn 
+      special_tokens --sample-format-fn special_tokens --output-path 
+      data/processed/text-to-cypher/CypherBench/train.csv
+    deps:
+    - path: data/raw/text-to-cypher/CypherBench/train.json
+      hash: md5
+      md5: cc7bc5f44c8f1b8ddf31d74d2aa25096
+      size: 45593037
+    - path: text2cypher/preprocessing/cypherbench.py
+      hash: md5
+      md5: 81fc5c1e46ade98f9e7593fcde063894
+      size: 1936
+    outs:
+    - path: data/processed/text-to-cypher/CypherBench/train.csv
+      hash: md5
+      md5: e9aafb858abeb75a592b7d0148348064
+      size: 63127911
+  train_t5_small_cypherbench:
+    cmd: python text2cypher/modeling/train.py --model-name google/flan-t5-small 
+      --train-data data/processed/text-to-cypher/CypherBench/train.csv 
+      --hyperparameters parameters/any.yaml --output-dir 
+      models/t5-small-cypherbench
+    deps:
+    - path: data/processed/text-to-cypher/CypherBench/train.csv
+      hash: md5
+      md5: e9aafb858abeb75a592b7d0148348064
+      size: 63127911
+    - path: parameters/any.yaml
+      hash: md5
+      md5: caf0558723507ac5314348499b547692
+      size: 775
+    - path: text2cypher/modeling/train.py
+      hash: md5
+      md5: ec7dfe65779e2cb90a4181a4d05a699e
+      size: 4402
+    outs:
+    - path: models/t5-small-cypherbench
+      hash: md5
+      md5: 67c38f6fafdc2ac13ae5af12b86db866.dir
+      size: 1236513166
+      nfiles: 19
+  preprocess_cypherbench_test_set:
+    cmd: python text2cypher/preprocessing/cypherbench.py --input-path 
+      data/raw/text-to-cypher/CypherBench/test.json --schema-format-fn 
+      special_tokens --sample-format-fn special_tokens --output-path 
+      data/processed/text-to-cypher/CypherBench/test.csv
+    deps:
+    - path: data/raw/text-to-cypher/CypherBench/test.json
+      hash: md5
+      md5: cd60bdae4e15e5422f7647e401310e29
+      size: 10473395
+    - path: text2cypher/preprocessing/cypherbench.py
+      hash: md5
+      md5: 81fc5c1e46ade98f9e7593fcde063894
+      size: 1936
+    outs:
+    - path: data/processed/text-to-cypher/CypherBench/test.csv
+      hash: md5
+      md5: a45f1f88f21cd8f7cf44ffbecc462dee
+      size: 17566415

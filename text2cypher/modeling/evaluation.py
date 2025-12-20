@@ -32,7 +32,7 @@ from __future__ import annotations
 
 import itertools
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterator, Optional
+from typing import Any, Callable, Iterator, List, Optional
 
 import tree_sitter_cypher
 from tree_sitter import Language, Node, Parser, Tree, TreeCursor
@@ -52,27 +52,27 @@ _LITERAL_NODE_TYPES: frozenset[str] = frozenset({
 })
 
 # Tree-sitter node type constants for better maintainability
-_NODE_TYPE_MATCH: str = "match"
-_NODE_TYPE_PATTERN: str = "pattern"
-_NODE_TYPE_PATTERN_PART: str = "pattern_part"
-_NODE_TYPE_ANONYMOUS_PATTERN_PART: str = "anonymous_pattern_part"
-_NODE_TYPE_PATTERN_ELEMENT: str = "pattern_element"
-_NODE_TYPE_PATTERN_ELEMENT_CHAIN: str = "pattern_element_chain"
-_NODE_TYPE_NODE_PATTERN: str = "node_pattern"
-_NODE_TYPE_RELATIONSHIP_PATTERN: str = "relationship_pattern"
-_NODE_TYPE_RELATIONSHIP_DETAIL: str = "relationship_detail"
-_NODE_TYPE_RELATIONSHIP_TYPES: str = "relationship_types"
-_NODE_TYPE_VARIABLE: str = "variable"
-_NODE_TYPE_NODE_LABELS: str = "node_labels"
-_NODE_TYPE_NODE_LABEL: str = "node_label"
-_NODE_TYPE_LABEL_NAME: str = "label_name"
-_NODE_TYPE_PROPERTIES: str = "properties"
-_NODE_TYPE_MAP_LITERAL: str = "map_literal"
-_NODE_TYPE_PROPERTY_KEY_NAME: str = "property_key_name"
-_NODE_TYPE_EXPRESSION: str = "expression"
-_NODE_TYPE_SYMBOLIC_NAME: str = "symbolic_name"
-_NODE_TYPE_RESERVED_WORD: str = "reserved_word"
-_NODE_TYPE_REL_TYPE_NAME: str = "rel_type_name"
+_MATCH_TYPE: str = "match"
+_OPTIONAL_TYPE: str = "optional"
+_PATTERN_PART_TYPE: str = "pattern_part"
+_ANONYMOUS_PATTERN_PART_TYPE: str = "anonymous_pattern_part"
+_PATTERN_ELEMENT_TYPE: str = "pattern_element"
+_PATTERN_ELEMENT_CHAIN_TYPE: str = "pattern_element_chain"
+_NODE_PATTERN_TYPE: str = "node_pattern"
+_RELATIONSHIP_TYPES_TYPE: str = "relationship_types"
+_VARIABLE_TYPE: str = "variable"
+_NODE_LABELS_TYPE: str = "node_labels"
+_NODE_LABEL_TYPE: str = "node_label"
+_PROPERTIES_TYPE: str = "properties"
+_MAP_LITERAL_TYPE: str = "map_literal"
+_PROPERTY_KEY_NAME_TYPE: str = "property_key_name"
+_EXPRESSION_TYPE: str = "expression"
+_SYMBOLIC_NAME_TYPE: str = "symbolic_name"
+_RESERVED_WORD_TYPE: str = "reserved_word"
+_REL_TYPE_NAME_TYPE: str = "rel_type_name"
+_RANGE_LITERAL_TYPE: str = "range_literal"
+_LEFT_ARROW_HEAD_TYPE: str = "left_arrow_head"
+_RIGHT_ARROW_HEAD_TYPE: str = "right_arrow_head"
 
 _CYPHER_LANGUAGE: Language = Language(tree_sitter_cypher.language())
 _default_parser: Parser = Parser(_CYPHER_LANGUAGE)
@@ -129,6 +129,7 @@ class GraphPattern:
         labels: set[str] = field(default_factory=set)
         properties: dict[str, Any] = field(default_factory=dict)
         variable: Optional[str] = None
+        range_literal: Optional[str] = None
 
         def __eq__(self, other: Any) -> bool:
             """Check equality between two Edge instances.
@@ -146,6 +147,7 @@ class GraphPattern:
             return (
                 self.from_node == other.from_node
                 and self.to_node == other.to_node
+                and self.range_literal == other.range_literal
             )
 
     @dataclass
@@ -163,10 +165,16 @@ class GraphPattern:
         nodes_map: dict[str, str] = field(default_factory=dict)
         edges_map: dict[str, str] = field(default_factory=dict)
 
+    @dataclass
+    class SubGraph:
+        nodes_vars: set[str] = field(default_factory=set)
+        edges_vars: set[str] = field(default_factory=set)
+
     def __init__(self) -> None:
         """Initialize an empty GraphPattern."""
         self.nodes: dict[str, GraphPattern.Node] = {}
         self.edges: dict[str, GraphPattern.Edge] = {}
+        self.sub_graphs: dict[str, GraphPattern.SubGraph] = {}
         self._anonymous_counter: int = 0
 
     def add_node(
@@ -207,6 +215,7 @@ class GraphPattern:
         labels: set[str],
         properties: dict[str, Any],
         edge_variable: Optional[str] = None,
+        range_literal: Optional[str] = None,
     ) -> str:
         """Add an edge to the graph pattern or merge with existing edge.
 
@@ -234,6 +243,7 @@ class GraphPattern:
                 labels=set(),
                 properties={},
                 variable=edge_variable,
+                range_literal=range_literal,
             )
 
         self.edges[edge_variable].labels.update(labels)
@@ -529,14 +539,25 @@ class GraphPattern:
 
     def __repr__(self) -> str:
         """Return a string representation of the GraphPattern."""
-        return f"GraphPattern(nodes={self.nodes!r}, edges={self.edges!r})"
+        return f"GraphPattern(nodes={self.nodes!r}, edges={self.edges!r}), sub_graphs={self.sub_graphs!r})"
+
+@dataclass
+class SingleCypherQuery:
+
+    match_pattern: GraphPattern = None
+    optional_match_pattern: Optional[GraphPattern] = None
+
+@dataclass
+class CypherQuery:
+
+    union_queries: List[SingleCypherQuery] = field(default_factory=list)
 
 class CypherPatternExtractor:
-    """Parses Cypher queries and extracts GraphPattern representations.
+    """Parses `CypherQuery`s and extracts `GraphPattern` representations.
 
     Uses tree-sitter for parsing with efficient non-recursive tree traversal
-    via TreeCursor. The extractor follows the Cypher grammar structure to
-    identify and process MATCH clauses.
+    via TreeCursor. The extractor follows the openCypher 9 grammar
+    specification for Cypher to parse cypher queries.
 
     Attributes:
         parser: The tree-sitter Parser instance configured for Cypher.
@@ -555,9 +576,83 @@ class CypherPatternExtractor:
         """
         self._parser: Parser = parser if parser is not None else _default_parser
 
+    # TODO: Suppress the syntax warning
+    # SyntaxWarning: invalid escape sequence '\p'
+    # unescaped_symbolic_name: () => (/(\p{ID_Start}|\p{Pc})(\p{ID_Continue}|\p{Sc})*/u),
     @staticmethod
     def _get_node_text(tree_node: Node) -> str:
         """Extract the source text from a tree-sitter node.
+
+        Tree-Sitter JavaScript Grammar Rules compatible with this method:
+        ```
+            schema_name: ($) => choice($.symbolic_name, $.reserved_word),
+            symbolic_name: ($) => prec.left(
+                choice(
+                    $.unescaped_symbolic_name,
+                    $.escaped_symbolic_name,
+                    word('count'),
+                    word('filter'),
+                    word('extract'),
+                    word('any'),
+                    word('none'),
+                    word('single')
+                )
+            ),
+            unescaped_symbolic_name: () => (/(\p{ID_Start}|\p{Pc})(\p{ID_Continue}|\p{Sc})*/u),
+            escaped_symbolic_name: () => repeat1(/`[^`]*`/),
+            reserved_word: () => choice(
+                word('all'), 
+                word('asc'), 
+                word('ascending'), 
+                word('by'), 
+                word('create'),
+                word('delete'), 
+                word('desc'), 
+                word('descending'), 
+                word('detach'), 
+                word('exists'), 
+                word('limit'), 
+                word('match'), 
+                word('merge'), 
+                word('on'), 
+                word('optional'), 
+                word('order'), 
+                word('remove'), 
+                word('return'), 
+                word('set'), 
+                word('skip'), 
+                word('where'), 
+                word('with'), 
+                word('union'), 
+                word('unwind'),
+                word('and'), 
+                word('as'), 
+                word('contains'),
+                word('distinct'), 
+                word('ends'), 
+                word('in'), 
+                word('is'), 
+                word('not'), 
+                word('or'), 
+                word('starts'), 
+                word('xor'), 
+                word('false'), 
+                word('true'), 
+                word('null'), 
+                word('constraint'), 
+                word('unique'), 
+                word('case'), 
+                word('when'), 
+                word('then'), 
+                word('else'), 
+                word('end'), 
+                word('mandatory'), 
+                word('scalar'), 
+                word('of'), 
+                word('add'), 
+                word('drop')
+            ),
+        ```
 
         Args:
             tree_node: The tree-sitter Node to extract text from.
@@ -567,51 +662,41 @@ class CypherPatternExtractor:
         """
         return tree_node.text.decode("utf-8")
 
-    def extract_pattern(self, cypher_query: str) -> GraphPattern:
-        """Extract a GraphPattern from a Cypher query string.
-
-        Parses the query and traverses the syntax tree to find all MATCH
-        clauses, extracting nodes, relationships, and their properties.
+    def extract_query(self, cypher_query: str) -> CypherQuery:
+        """Extract a `CypherQuery` from a Cypher query string.
 
         Args:
             cypher_query: A valid Cypher query string.
 
         Returns:
-            A GraphPattern containing all nodes and edges from MATCH clauses.
+            A `CypherQuery` containing extracted graph patterns.
         """
         parse_tree: Tree = self._parser.parse(bytes(cypher_query, "utf-8"))
-        extracted_pattern = GraphPattern()
+        cursor: TreeCursor = parse_tree.walk()
 
-        tree_cursor: TreeCursor = parse_tree.walk()
-        self._traverse_and_extract_matches(tree_cursor, extracted_pattern)
+        if cursor.node.has_error:
+            raise ValueError(
+                "Failed to parse Cypher query. Please ensure the query is valid."
+            )
 
-        return extracted_pattern
-
-    # TODO: Handle also OPTIONAL MATCH clauses even if
-    # with the current state of the code they are partially handled
-    # in the sense that they are added as normal MATCH clauses.
-    def _traverse_and_extract_matches(
-        self,
-        cursor: TreeCursor,
-        pattern_container: GraphPattern,
-    ) -> None:
-        """Traverse the syntax tree to find and process all MATCH clauses.
-
-        Uses iterative depth-first traversal with the TreeCursor for efficiency.
-
-        Args:
-            cursor: TreeCursor positioned at the root of the tree.
-            pattern_container: GraphPattern to populate with extracted data.
-        """
         should_descend: bool = True
         traversal_active: bool = True
 
+        query = CypherQuery([SingleCypherQuery()])
+
         while traversal_active:
+
             if should_descend:
-                if cursor.node.type == _NODE_TYPE_MATCH:
-                    self._process_match_clause(cursor.node, pattern_container)
+                if cursor.node.type == _MATCH_TYPE:
+                    pattern, is_optional = self._process_match_clause(cursor.node)
+                    if is_optional:
+                        query.union_queries[-1].optional_match_pattern = pattern
+                    else:
+                        query.union_queries[-1].match_pattern = pattern
                     should_descend = False
                 elif not cursor.goto_first_child():
+                    if cursor.node.type == "union":
+                        query.union_queries.append(SingleCypherQuery())
                     should_descend = False
             else:
                 if cursor.goto_next_sibling():
@@ -620,12 +705,13 @@ class CypherPatternExtractor:
                     should_descend = False
                 else:
                     traversal_active = False
+        return query
 
+    # TODO: process the where clause
     def _process_match_clause(
         self,
         match_node: Node,
-        pattern_container: GraphPattern,
-    ) -> None:
+    ) -> bool:
         """Process a MATCH clause node to extract pattern information.
 
         Tree-Sitter JavaScript Grammar:
@@ -642,11 +728,25 @@ class CypherPatternExtractor:
             match_node: The tree-sitter Node representing a MATCH clause.
             pattern_container: GraphPattern to populate with extracted data.
         """
-        for child in match_node.children:
-            if child.type == _NODE_TYPE_PATTERN:
-                self._process_pattern(child, pattern_container)
-                return
+        pattern = GraphPattern()
+        
+        if match_node.child(0).type == _OPTIONAL_TYPE:
+            pattern_node = match_node.child(2)
+            # where_node = match_node.child(3)
+            is_optional = True
+        else:
+            pattern_node = match_node.child(1)
+            # where_node = match_node.child(2)
+            is_optional = False
+        
+        self._process_pattern(pattern_node, pattern)
 
+        # if child.children[-1].type == _NODE_TYPE_WHERE:
+        #     process the where clause
+
+        return pattern, is_optional
+
+    # TODO: handle the choice `seq($.variable, '=', $.anonymous_pattern_part),`
     def _process_pattern(
         self,
         pattern_node: Node,
@@ -659,7 +759,12 @@ class CypherPatternExtractor:
             pattern: ($) => seq(
                 $.pattern_part, 
                 repeat(seq(',', $.pattern_part))
-            )
+            ),
+            pattern_part: ($) => choice(
+                seq($.variable, '=', $.anonymous_pattern_part), 
+                $.anonymous_pattern_part
+            ),
+            anonymous_pattern_part: ($) => $.pattern_element,
         ```
 
         Args:
@@ -667,57 +772,21 @@ class CypherPatternExtractor:
             pattern_container: GraphPattern to populate with extracted data.
         """
         for child in pattern_node.children:
-            if child.type == _NODE_TYPE_PATTERN_PART:
-                self._process_pattern_part(child, pattern_container)
-
-    def _process_pattern_part(
-        self,
-        part_node: Node,
-        pattern_container: GraphPattern,
-    ) -> None:
-        """Process a pattern_part node.
-
-        Tree-Sitter JavaScript Grammar:
-        ```
-            pattern_part: ($) => choice(
-                seq($.variable, '=', $.anonymous_pattern_part), 
-                $.anonymous_pattern_part
-            )
-        ```
-
-        Args:
-            part_node: The tree-sitter Node representing the pattern part.
-            pattern_container: GraphPattern to populate with extracted data.
-        """
-        for child in part_node.children:
-            if child.type == _NODE_TYPE_ANONYMOUS_PATTERN_PART:
-                self._process_anonymous_pattern_part(child, pattern_container)
-                return
-
-    def _process_anonymous_pattern_part(
-        self,
-        anonymous_node: Node,
-        pattern_container: GraphPattern,
-    ) -> None:
-        """Process an anonymous_pattern_part node.
-
-        Tree-Sitter JavaScript Grammar:
-        ```
-            anonymous_pattern_part: ($) => $.pattern_element,
-        ```
-
-        Args:
-            anonymous_node: The tree-sitter Node for the anonymous pattern part.
-            pattern_container: GraphPattern to populate with extracted data.
-        """
-        if anonymous_node.child_count > 0:
-            first_child = anonymous_node.children[0]
-            if first_child.type == _NODE_TYPE_PATTERN_ELEMENT:
-                self._process_pattern_element(first_child, pattern_container)
+            if child.type == _PATTERN_PART_TYPE:
+                current_subgraph = None
+                for patt_child in child.children:
+                    if patt_child.type == _VARIABLE_TYPE:
+                        symbolic_name_node = patt_child.child(0)
+                        variable = self._get_node_text(symbolic_name_node)
+                        current_subgraph = GraphPattern.SubGraph()
+                        pattern_container.sub_graphs[variable] = current_subgraph
+                    elif patt_child.type == _ANONYMOUS_PATTERN_PART_TYPE:
+                        patt_elem_node = patt_child.child(0)
+                        self._process_pattern_element(patt_elem_node, pattern_container)
 
     def _process_pattern_element(
         self,
-        element_node: Node,
+        patt_elem_node: Node,
         pattern_container: GraphPattern,
     ) -> None:
         """Process a pattern_element node containing nodes and relationships.
@@ -727,49 +796,149 @@ class CypherPatternExtractor:
             pattern_element: ($) => choice(
                 seq($.node_pattern, repeat($.pattern_element_chain)), 
                 seq('(', $.pattern_element, ')')
-            )
+            ),
+            pattern_element_chain: ($) => seq(
+                $.relationship_pattern, 
+                $.node_pattern
+            ),
         ```
 
         Args:
             element_node: The tree-sitter Node representing the pattern element.
             pattern_container: GraphPattern to populate with extracted data.
         """
-        current_node_variable: Optional[str] = None
+        left_node_variable: Optional[str] = None
 
-        for child in element_node.children:
+        current_node = patt_elem_node
+        first_child = current_node.child(0)
+        while first_child.type == '(':
+            current_node = current_node.child(1)
+            first_child = current_node.child(0)
+
+        for child in current_node.children:
             child_type = child.type
 
-            if child_type == _NODE_TYPE_PATTERN_ELEMENT:
-                # Handle parenthesized pattern recursively
-                self._process_pattern_element(child, pattern_container)
-                return
-
-            elif child_type == _NODE_TYPE_NODE_PATTERN:
-                current_node_variable = self._extract_node_from_pattern(
+            if child_type == _NODE_PATTERN_TYPE:
+                left_node_variable = self._extract_node_from_pattern(
                     child, pattern_container
                 )
 
-            elif child_type == _NODE_TYPE_PATTERN_ELEMENT_CHAIN:
+            elif child_type == _PATTERN_ELEMENT_CHAIN_TYPE:
                 relationship_node: Optional[Node] = None
-                next_node_pattern: Optional[Node] = None
+                right_node_pattern: Optional[Node] = None
 
-                for chain_child in child.children:
-                    if chain_child.type == _NODE_TYPE_RELATIONSHIP_PATTERN:
-                        relationship_node = chain_child
-                    elif chain_child.type == _NODE_TYPE_NODE_PATTERN:
-                        next_node_pattern = chain_child
+                relationship_node = child.child(0)
+                right_node_pattern = child.child(1)
 
-                if relationship_node is not None and next_node_pattern is not None:
-                    next_node_variable = self._extract_node_from_pattern(
-                        next_node_pattern, pattern_container
+                right_node_variable = self._extract_node_from_pattern(
+                    right_node_pattern, pattern_container
+                )
+                self._extract_relationship(
+                    relationship_node,
+                    left_node_variable,
+                    right_node_variable,
+                    pattern_container,
+                )
+                left_node_variable = right_node_variable
+
+    def _extract_relationship(
+        self,
+        relationship_pattern: Node,
+        left_variable: Optional[str],
+        right_variable: Optional[str],
+        pattern_container: GraphPattern,
+    ) -> None:
+        """Extract relationship information from a relationship_pattern node.
+
+        Tree-Sitter Javascript Grammar:
+        ```
+            relationship_pattern: ($) => seq(
+                optional($.left_arrow_head), 
+                $.dash, 
+                optional($.relationship_detail), 
+                $.dash, 
+                optional($.right_arrow_head)
+            ),
+            relationship_detail: ($) => seq('[',
+                optional($.variable), 
+                optional($.relationship_types), 
+                optional($.range_literal), 
+                optional($.properties),
+            ']'),
+            relationship_types: ($) => seq(
+                ':', 
+                $.rel_type_name, 
+                repeat(seq('|', optional(':'), $.rel_type_name))
+            ),
+            rel_type_name: ($) => $.schema_name,
+            range_literal: ($) => seq(
+                '*', 
+                optional($.integer_literal), 
+                optional(
+                    seq(
+                        '..', 
+                        optional($.integer_literal)
                     )
-                    self._extract_relationship(
-                        relationship_node,
-                        current_node_variable,
-                        next_node_variable,
-                        pattern_container,
-                    )
-                    current_node_variable = next_node_variable
+                )
+            ),
+        ```
+
+        Args:
+            relationship_pattern: The tree-sitter Node representing a relationship pattern.
+            start_variable: Variable name of the source node.
+            end_variable: Variable name of the target node.
+            pattern_container: GraphPattern to add the extracted relationship to.
+        """
+        edge_variable: Optional[str] = None
+        labels: set[str] = set()
+        properties: dict[str, Any] = {}
+        range_literal: Optional[str] = None
+
+        direction_left = True
+        direction_right = True
+        rel_detail_index = 1
+        child_count = relationship_pattern.child_count
+        if relationship_pattern.child(0).type != _LEFT_ARROW_HEAD_TYPE:
+            direction_left = False
+        else:
+            rel_detail_index = 2
+        if relationship_pattern.child(child_count - 1).type != _RIGHT_ARROW_HEAD_TYPE:
+            direction_right = False
+
+        rel_detail_node = relationship_pattern.child(rel_detail_index)
+
+        for detail_child in rel_detail_node.children:
+            detail_type = detail_child.type
+
+            if detail_type == _VARIABLE_TYPE:
+                symbolic_name_node = detail_child.child(0)
+                edge_variable = self._get_node_text(symbolic_name_node)
+
+            elif detail_type == _RELATIONSHIP_TYPES_TYPE:
+                # Extract all relationship types (handles [:TYPE1|TYPE2|TYPE3])
+                for type_child in detail_child.children:
+                    if type_child.type == _REL_TYPE_NAME_TYPE:
+                        label = self._get_node_text(type_child.children[0])
+                        labels.add(label)
+
+            elif detail_type == _RANGE_LITERAL_TYPE:
+                range_literal = self._get_node_text(detail_child) # self.get_range_literal(detail_child)
+
+            elif detail_type == _PROPERTIES_TYPE:
+                properties = self._extract_properties_from_node(detail_child)
+
+        if direction_left:
+            pattern_container.add_edge(
+                right_variable, left_variable, 
+                labels, properties, edge_variable,
+                range_literal
+            )
+        if direction_right:
+            pattern_container.add_edge(
+                left_variable, right_variable,
+                labels, properties, edge_variable,
+                range_literal
+            )
 
     def _extract_node_from_pattern(
         self,
@@ -789,7 +958,12 @@ class CypherPatternExtractor:
                         optional($.properties), 
                     ')')
                 )
-            )
+            ),
+            node_labels: ($) => prec.right(repeat1($.node_label)),
+            node_label: ($) => seq(':', $.label_name),
+            label_name: ($) => $.schema_name,
+            variable_in_parens: ($) => seq('(', $.variable, ')'),
+            variable: ($) => $.symbolic_name,
         ```
 
         Args:
@@ -806,114 +980,27 @@ class CypherPatternExtractor:
         for child in node_pattern.children:
             child_type = child.type
 
-            if child_type == _NODE_TYPE_VARIABLE:
-                variable = self._extract_variable_name(child)
+            if child_type == _VARIABLE_TYPE:
+                symbolic_name_node = child.child(0)
+                variable = self._get_node_text(symbolic_name_node)
 
-            elif child_type == _NODE_TYPE_NODE_LABELS:
+            elif child_type == _NODE_LABELS_TYPE:
                 for label_child in child.children:
-                    if label_child.type == _NODE_TYPE_NODE_LABEL:
-                        label_name = self._extract_label_from_node_label(label_child)
-                        if label_name:
-                            labels.add(label_name)
+                    label_name_node = label_child.child(1)
+                    schema_name_node = label_name_node.child(0)
+                    label_name = self._get_node_text(schema_name_node)
+                    if label_name:
+                        labels.add(label_name)
 
-            elif child_type == _NODE_TYPE_PROPERTIES:
+            elif child_type == _PROPERTIES_TYPE:
                 properties = self._extract_properties_from_node(child)
 
         return pattern_container.add_node(labels, properties, variable)
 
-    def _extract_variable_name(self, variable_node: Node) -> Optional[str]:
-        """Extract the variable name from a variable node.
-
-        Tree-Sitter JavaScript Grammar:
-        ```
-            variable: ($) => $.symbolic_name
-        ```
-
-        Args:
-            variable_node: The tree-sitter Node representing a variable.
-
-        Returns:
-            The extracted variable name string, or None if extraction fails.
-        """
-        if variable_node.child_count > 0:
-            symbolic_name_node = variable_node.children[0]
-            if symbolic_name_node.child_count > 0:
-                return self._get_node_text(symbolic_name_node.children[0])
-            return self._get_node_text(symbolic_name_node)
-        return self._get_node_text(variable_node)
-
-    def _extract_label_from_node_label(self, node_label: Node) -> str:
-        """Extract the label string from a node_label node.
-
-        Tree-Sitter JavaScript Grammar:
-        ```
-            node_label: ($) => seq(':', $.label_name)
-        ```
-
-        Args:
-            node_label: The tree-sitter Node representing a node label.
-
-        Returns:
-            The extracted label string, or empty string if not found.
-        """
-        for child in node_label.children:
-            if child.type == _NODE_TYPE_LABEL_NAME:
-                return self._extract_name_from_label_name(child)
-        return ""
-
-    def _extract_name_from_label_name(self, label_name_node: Node) -> str:
-        """Extract the name from a label_name node.
-
-        Tree-Sitter JavaScript Grammar:
-        ```
-            label_name: ($) => $.schema_name
-        ```
-
-        Args:
-            label_name_node: The tree-sitter Node representing a label name.
-
-        Returns:
-            The extracted label name string.
-        """
-        if label_name_node.child_count > 0:
-            return self._extract_name_from_schema_name(label_name_node.children[0])
-        return self._get_node_text(label_name_node)
-
-    def _extract_name_from_schema_name(self, schema_name_node: Node) -> str:
-        """Extract the name from a schema_name node.
-
-        Tree-Sitter JavaScript Grammar:
-        ```
-            schema_name: ($) => choice($.symbolic_name, $.reserved_word),
-            symbolic_name: ($) => prec.left(
-                choice(
-                    $.unescaped_symbolic_name, 
-                    $.escaped_symbolic_name, 
-                    word('count'), 
-                    word('filter'), 
-                    word('extract'), 
-                    word('any'), 
-                    word('none'), 
-                    word('single')
-                )
-            )
-        ```
-
-        Args:
-            schema_name_node: The tree-sitter Node representing a schema name.
-
-        Returns:
-            The extracted name string.
-        """
-        if schema_name_node.child_count > 0:
-            child = schema_name_node.children[0]
-            if child.type == _NODE_TYPE_SYMBOLIC_NAME:
-                if child.child_count > 0:
-                    return self._get_node_text(child.children[0])
-            elif child.type == _NODE_TYPE_RESERVED_WORD:
-                return self._get_node_text(child)
-        return self._get_node_text(schema_name_node)
-
+    # TODO: Handle parameter rule?
+    # TODO: Handle expressions?
+    # i.e. changing how the property value is extracted
+    # instead of simply using _extract_literal_value_from_expression
     def _extract_properties_from_node(
         self, properties_node: Node
     ) -> dict[str, Any]:
@@ -921,25 +1008,8 @@ class CypherPatternExtractor:
 
         Tree-Sitter JavaScript Grammar:
         ```
-            properties: ($) => prec(1, choice($.map_literal, $.parameter))
-        ```
-
-        Args:
-            properties_node: The tree-sitter Node representing properties.
-
-        Returns:
-            Dictionary of property key-value pairs.
-        """
-        for child in properties_node.children:
-            if child.type == _NODE_TYPE_MAP_LITERAL:
-                return self._parse_map_literal_node(child)
-        return {}
-
-    def _parse_map_literal_node(self, map_node: Node) -> dict[str, Any]:
-        """Parse a map_literal node into a dictionary.
-
-        Tree-Sitter JavaScript Grammar:
-        ```
+            properties: ($) => prec(1, choice($.map_literal, $.parameter)),
+            parameter: ($) => seq('$', choice($.symbolic_name, $.decimal_integer)),
             map_literal: ($) => seq('{', 
                 optional(
                     seq(
@@ -948,50 +1018,37 @@ class CypherPatternExtractor:
                         repeat(seq(',', $.property_key_name, ':', $.expression))
                     )
                 ), 
-            '}')
+            '}'),
+            property_key_name: ($) => $.schema_name,
         ```
 
         Args:
-            map_node: The tree-sitter Node representing a map literal.
+            properties_node: The tree-sitter Node representing properties.
 
         Returns:
             Dictionary of property key-value pairs.
         """
-        properties: dict[str, Any] = {}
-        current_key: Optional[str] = None
+        child = properties_node.child(0)
+        if child.type == _MAP_LITERAL_TYPE:
+            properties: dict[str, Any] = {}
+            current_key: Optional[str] = None
 
-        for child in map_node.children:
-            child_type = child.type
+            for child in child.children:
+                child_type = child.type
 
-            if child_type == _NODE_TYPE_PROPERTY_KEY_NAME:
-                current_key = self._extract_property_key_name(child)
+                if child_type == _PROPERTY_KEY_NAME_TYPE:
+                    current_key = self._get_node_text(child.child(0))
 
-            elif child_type == _NODE_TYPE_EXPRESSION and current_key is not None:
-                value = self._extract_literal_value_from_expression(child)
-                if value is not None:
-                    properties[current_key] = value
-                current_key = None
+                elif child_type == _EXPRESSION_TYPE:
+                    value = self._extract_literal_value_from_expression(child)
+                    if value is not None:
+                        properties[current_key] = value
+                    current_key = None
 
-        return properties
-
-    def _extract_property_key_name(self, key_node: Node) -> str:
-        """Extract the property key name from a property_key_name node.
-
-        Tree-Sitter JavaScript Grammar:
-        ```
-        property_key_name: ($) => $.schema_name,
-        ```
-
-        Args:
-            key_node: The tree-sitter Node representing a property key name.
-
-        Returns:
-            The extracted property key string.
-        """
-        if key_node.child_count > 0:
-            return self._extract_name_from_schema_name(key_node.children[0])
-        return self._get_node_text(key_node)
-
+            return properties
+        return {}
+    
+    # TODO: Review this function
     def _extract_literal_value_from_expression(
         self, expression_node: Node
     ) -> Optional[str]:
@@ -1030,84 +1087,6 @@ class CypherPatternExtractor:
                     traversal_active = False
 
         return literal
-
-    def _extract_relationship(
-        self,
-        relationship_pattern: Node,
-        start_variable: Optional[str],
-        end_variable: Optional[str],
-        pattern_container: GraphPattern,
-    ) -> None:
-        """Extract relationship information from a relationship_pattern node.
-
-        Tree-Sitter Javascript Grammar:
-        ```
-            relationship_pattern: ($) => seq(
-                optional($.left_arrow_head), 
-                $.dash, 
-                optional($.relationship_detail), 
-                $.dash, 
-                optional($.right_arrow_head)
-            ),
-            relationship_detail: ($) => seq('[',
-                optional($.variable), 
-                optional($.relationship_types), 
-                optional($.range_literal), 
-                optional($.properties),
-            ']'),
-        ```
-
-        Args:
-            relationship_pattern: The tree-sitter Node representing a relationship pattern.
-            start_variable: Variable name of the source node.
-            end_variable: Variable name of the target node.
-            pattern_container: GraphPattern to add the extracted relationship to.
-        """
-        edge_variable: Optional[str] = None
-        labels: set[str] = set()
-        properties: dict[str, Any] = {}
-
-        for child in relationship_pattern.children:
-            if child.type == _NODE_TYPE_RELATIONSHIP_DETAIL:
-                for detail_child in child.children:
-                    detail_type = detail_child.type
-
-                    if detail_type == _NODE_TYPE_VARIABLE:
-                        edge_variable = self._extract_variable_name(detail_child)
-
-                    elif detail_type == _NODE_TYPE_RELATIONSHIP_TYPES:
-                        # Extract all relationship types (handles [:TYPE1|TYPE2|TYPE3])
-                        for type_child in detail_child.children:
-                            if type_child.type == _NODE_TYPE_REL_TYPE_NAME:
-                                label = self._extract_relationship_type_name(
-                                    type_child
-                                )
-                                labels.add(label)
-
-                    elif detail_type == _NODE_TYPE_PROPERTIES:
-                        properties = self._extract_properties_from_node(detail_child)
-
-                break  # Only one relationship_detail expected
-
-        pattern_container.add_edge(
-            start_variable, end_variable, labels, properties, edge_variable
-        )
-
-    def _extract_relationship_type_name(self, rel_type_node: Node) -> str:
-        """Extract the relationship type name from a rel_type_name node.
-
-        Grammar:
-            rel_type_name: schema_name
-
-        Args:
-            rel_type_node: The tree-sitter Node representing a relationship type name.
-
-        Returns:
-            The extracted relationship type string.
-        """
-        if rel_type_node.child_count > 0:
-            return self._extract_name_from_schema_name(rel_type_node.children[0])
-        return self._get_node_text(rel_type_node)
 
 
 def compute_graph_pattern_similarity(
@@ -1158,97 +1137,105 @@ def compute_graph_pattern_similarity(
 
 if __name__ == "__main__":
 
-    # Test Case 1: Semantically equivalent queries with different variable names
-    ground_truth_query_1 = (
-        "MATCH (p:Person)-[:ACTED_IN {role: 'Neo'}]->(m:Movie) RETURN p.name"
-    )
-    generated_query_1 = (
-        "MATCH (actor:Person)-[:ACTED_IN {role: 'Neo'}]->(film:Movie) RETURN actor.name"
-    )
+    demo = '''
+MATCH p = (me)<-[:KNOWS*1..2]->(remote_friend), c = ((remote_friend)<-[:LIKES]->(movie:Movie {title: 'The Matrix'}))
+RETURN me
+'''
+    extractor = CypherPatternExtractor()
+    pattern = extractor.extract_query(demo)
+    print(pattern.__repr__())
 
-    print("=" * 60)
-    print("Test 1: Semantically Equivalent Queries")
-    print("=" * 60)
-    score_1, mapping_1 = compute_graph_pattern_similarity(
-        generated_query_1, ground_truth_query_1, verbose=True
-    )
-    print()
+    # # Test Case 1: Semantically equivalent queries with different variable names
+    # ground_truth_query_1 = (
+    #     "MATCH (p:Person)-[:ACTED_IN {role: 'Neo'}]->(m:Movie) RETURN p.name"
+    # )
+    # generated_query_1 = (
+    #     "MATCH (actor:Person)-[:ACTED_IN {role: 'Neo'}]->(film:Movie) RETURN actor.name"
+    # )
 
-    # Test Case 2: Missing property in generated query
-    ground_truth_query_2 = (
-        "MATCH (p:Person {name: 'Tom'})-[:KNOWS]->(f:Person) RETURN f"
-    )
-    generated_query_2 = "MATCH (p:Person)-[:KNOWS]->(f:Person) RETURN f"
+    # print("=" * 60)
+    # print("Test 1: Semantically Equivalent Queries")
+    # print("=" * 60)
+    # score_1, mapping_1 = compute_graph_pattern_similarity(
+    #     generated_query_1, ground_truth_query_1, verbose=True
+    # )
+    # print()
 
-    print("=" * 60)
-    print("Test 2: Missing Property")
-    print("=" * 60)
-    score_2, mapping_2 = compute_graph_pattern_similarity(
-        generated_query_2, ground_truth_query_2, verbose=True
-    )
-    print(
-        "Explanation: Ground truth has extra property 'name', "
-        "expected similarity ~ 0.75"
-    )
-    print()
+    # # Test Case 2: Missing property in generated query
+    # ground_truth_query_2 = (
+    #     "MATCH (p:Person {name: 'Tom'})-[:KNOWS]->(f:Person) RETURN f"
+    # )
+    # generated_query_2 = "MATCH (p:Person)-[:KNOWS]->(f:Person) RETURN f"
 
-    # Test Case 3: Completely wrong labels
-    ground_truth_query_3 = "MATCH (a:Person) RETURN a"
-    generated_query_3 = "MATCH (m:Movie) RETURN m"
+    # print("=" * 60)
+    # print("Test 2: Missing Property")
+    # print("=" * 60)
+    # score_2, mapping_2 = compute_graph_pattern_similarity(
+    #     generated_query_2, ground_truth_query_2, verbose=True
+    # )
+    # print(
+    #     "Explanation: Ground truth has extra property 'name', "
+    #     "expected similarity ~ 0.75"
+    # )
+    # print()
 
-    print("=" * 60)
-    print("Test 3: Wrong Labels")
-    print("=" * 60)
-    score_3, mapping_3 = compute_graph_pattern_similarity(
-        generated_query_3, ground_truth_query_3, verbose=True
-    )
-    print()
+    # # Test Case 3: Completely wrong labels
+    # ground_truth_query_3 = "MATCH (a:Person) RETURN a"
+    # generated_query_3 = "MATCH (m:Movie) RETURN m"
 
-    # Test Case 4: Complex pattern with anonymous nodes
-    ground_truth_query_4 = (
-        "MATCH (u:User)-[:PURCHASED]->(:Product {id: 123})<-[:CREATED]-(:Creator)"
-    )
-    generated_query_4 = (
-        "MATCH (x:User)-[f:PURCHASED]->(y:Product {id: 123})<-[:CREATED]-(z:Creator)"
-    )
+    # print("=" * 60)
+    # print("Test 3: Wrong Labels")
+    # print("=" * 60)
+    # score_3, mapping_3 = compute_graph_pattern_similarity(
+    #     generated_query_3, ground_truth_query_3, verbose=True
+    # )
+    # print()
 
-    print("=" * 60)
-    print("Test 4: Complex Pattern with Anonymous vs Named Variables")
-    print("=" * 60)
-    score_4, mapping_4 = compute_graph_pattern_similarity(
-        generated_query_4, ground_truth_query_4, verbose=True
-    )
-    print()
+    # # Test Case 4: Complex pattern with anonymous nodes
+    # ground_truth_query_4 = (
+    #     "MATCH (u:User)-[:PURCHASED]->(:Product {id: 123})<-[:CREATED]-(:Creator)"
+    # )
+    # generated_query_4 = (
+    #     "MATCH (x:User)-[f:PURCHASED]->(y:Product {id: 123})<-[:CREATED]-(z:Creator)"
+    # )
 
-    # Test Case 5: Multiple relationship labels (using | operator)
-    ground_truth_query_5 = (
-        "MATCH (p:Person)-[:KNOWS|FRIENDS|COLLEAGUES]->(q:Person) RETURN p, q"
-    )
-    generated_query_5 = (
-        "MATCH (a:Person)-[:KNOWS|FRIENDS|COLLEAGUES]->(b:Person) RETURN a, b"
-    )
+    # print("=" * 60)
+    # print("Test 4: Complex Pattern with Anonymous vs Named Variables")
+    # print("=" * 60)
+    # score_4, mapping_4 = compute_graph_pattern_similarity(
+    #     generated_query_4, ground_truth_query_4, verbose=True
+    # )
+    # print()
 
-    print("=" * 60)
-    print("Test 5: Multiple Relationship Labels (Exact Match)")
-    print("=" * 60)
-    score_5, mapping_5 = compute_graph_pattern_similarity(
-        generated_query_5, ground_truth_query_5, verbose=True
-    )
-    print("Explanation: Both queries have identical multi-label relationships, expected similarity = 1.0")
-    print()
+    # # Test Case 5: Multiple relationship labels (using | operator)
+    # ground_truth_query_5 = (
+    #     "MATCH (p:Person)-[:KNOWS|FRIENDS|COLLEAGUES]->(q:Person) RETURN p, q"
+    # )
+    # generated_query_5 = (
+    #     "MATCH (a:Person)-[:KNOWS|FRIENDS|COLLEAGUES]->(b:Person) RETURN a, b"
+    # )
 
-    # Test Case 6: Partial match in multiple relationship labels
-    ground_truth_query_6 = (
-        "MATCH (p:Person)-[:KNOWS|FRIENDS]->(q:Person) RETURN p, q"
-    )
-    generated_query_6 = (
-        "MATCH (a:Person)-[:KNOWS]->(b:Person) RETURN a, b"
-    )
+    # print("=" * 60)
+    # print("Test 5: Multiple Relationship Labels (Exact Match)")
+    # print("=" * 60)
+    # score_5, mapping_5 = compute_graph_pattern_similarity(
+    #     generated_query_5, ground_truth_query_5, verbose=True
+    # )
+    # print("Explanation: Both queries have identical multi-label relationships, expected similarity = 1.0")
+    # print()
 
-    print("=" * 60)
-    print("Test 6: Multiple Relationship Labels (Partial Match)")
-    print("=" * 60)
-    score_6, mapping_6 = compute_graph_pattern_similarity(
-        generated_query_6, ground_truth_query_6, verbose=True
-    )
-    print("Explanation: Ground truth has {KNOWS, FRIENDS}, generated has only {KNOWS}, edges won't match")
+    # # Test Case 6: Partial match in multiple relationship labels
+    # ground_truth_query_6 = (
+    #     "MATCH (p:Person)-[:KNOWS|FRIENDS]->(q:Person) RETURN p, q"
+    # )
+    # generated_query_6 = (
+    #     "MATCH (a:Person)-[:KNOWS]->(b:Person) RETURN a, b"
+    # )
+
+    # print("=" * 60)
+    # print("Test 6: Multiple Relationship Labels (Partial Match)")
+    # print("=" * 60)
+    # score_6, mapping_6 = compute_graph_pattern_similarity(
+    #     generated_query_6, ground_truth_query_6, verbose=True
+    # )
+    # print("Explanation: Ground truth has {KNOWS, FRIENDS}, generated has only {KNOWS}, edges won't match")

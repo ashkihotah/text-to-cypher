@@ -56,19 +56,15 @@ _MATCH_TYPE: str = "match"
 _OPTIONAL_TYPE: str = "optional"
 _PATTERN_PART_TYPE: str = "pattern_part"
 _ANONYMOUS_PATTERN_PART_TYPE: str = "anonymous_pattern_part"
-_PATTERN_ELEMENT_TYPE: str = "pattern_element"
 _PATTERN_ELEMENT_CHAIN_TYPE: str = "pattern_element_chain"
 _NODE_PATTERN_TYPE: str = "node_pattern"
 _RELATIONSHIP_TYPES_TYPE: str = "relationship_types"
 _VARIABLE_TYPE: str = "variable"
 _NODE_LABELS_TYPE: str = "node_labels"
-_NODE_LABEL_TYPE: str = "node_label"
 _PROPERTIES_TYPE: str = "properties"
 _MAP_LITERAL_TYPE: str = "map_literal"
 _PROPERTY_KEY_NAME_TYPE: str = "property_key_name"
 _EXPRESSION_TYPE: str = "expression"
-_SYMBOLIC_NAME_TYPE: str = "symbolic_name"
-_RESERVED_WORD_TYPE: str = "reserved_word"
 _REL_TYPE_NAME_TYPE: str = "rel_type_name"
 _RANGE_LITERAL_TYPE: str = "range_literal"
 _LEFT_ARROW_HEAD_TYPE: str = "left_arrow_head"
@@ -147,7 +143,6 @@ class GraphPattern:
             return (
                 self.from_node == other.from_node
                 and self.to_node == other.to_node
-                and self.range_literal == other.range_literal
             )
 
     @dataclass
@@ -197,6 +192,19 @@ class GraphPattern:
         Returns:
             The variable name assigned to the node (either provided or generated).
         """
+        
+        if variable in self.edges:
+            raise ValueError(
+                f"Variable '{variable}' already used for an edge. "
+                "Node and edge variables must be distinct."
+            )
+        
+        if variable in self.sub_graphs:
+            raise ValueError(
+                f"Variable '{variable}' already used for a subgraph. "
+                "Node and subgraph variables must be distinct."
+            )
+        
         if variable is None:
             variable = f"{_ANONYMOUS_NODE_PREFIX}{self._anonymous_counter}"
             self._anonymous_counter += 1
@@ -232,6 +240,19 @@ class GraphPattern:
         Returns:
             The variable name assigned to the edge (either provided or generated).
         """
+        
+        if edge_variable in self.nodes:
+            raise ValueError(
+                f"Variable '{edge_variable}' already used for a node. "
+                "Node and edge variables must be distinct."
+            )
+        
+        if edge_variable in self.sub_graphs:
+            raise ValueError(
+                f"Variable '{edge_variable}' already used for a subgraph. "
+                "Edge and subgraph variables must be distinct."
+            )
+        
         if edge_variable is None:
             edge_variable = f"{_ANONYMOUS_EDGE_PREFIX}{self._anonymous_counter}"
             self._anonymous_counter += 1
@@ -250,6 +271,33 @@ class GraphPattern:
         self.edges[edge_variable].properties.update(properties)
         return edge_variable
 
+    def add_subgraph(self, variable: str) -> GraphPattern.SubGraph:
+        """Add a subgraph to the graph pattern.
+
+        Args:
+            variable: Variable name for the subgraph.
+
+        Returns:
+            The SubGraph instance added.
+        """
+        if variable in self.nodes:
+            raise ValueError(
+                f"Variable '{variable}' already used for a node. "
+                "Node and subgraph variables must be distinct."
+            )
+        
+        if variable in self.edges:
+            raise ValueError(
+                f"Variable '{variable}' already used for an edge. "
+                "Edge and subgraph variables must be distinct."
+            )
+        
+        if variable not in self.sub_graphs:
+            self.sub_graphs[variable] = GraphPattern.SubGraph()
+        
+        return self.sub_graphs[variable]
+
+    # TODO: Add support for usbgraph mappings
     def apply_mapping(self, mapping: GraphPattern.Mapping) -> GraphPattern:
         """Create a new GraphPattern with variables renamed according to the mapping.
 
@@ -318,12 +366,12 @@ class GraphPattern:
                     self_node.labels.intersection(other_node.labels)
                 )
 
-                if matching_nodes_labels > 0:
-                    matching_nodes += matching_nodes_labels
+                # if matching_nodes_labels > 0:
+                matching_nodes += matching_nodes_labels
 
-                    for property_key, property_value in self_node.properties.items():
-                        if other_node.properties.get(property_key) == property_value:
-                            matching_node_properties += 1
+                for property_key, property_value in self_node.properties.items():
+                    if other_node.properties.get(property_key) == property_value:
+                        matching_node_properties += 1
 
         return matching_nodes, matching_node_properties
 
@@ -342,6 +390,7 @@ class GraphPattern:
         """
         matching_edges: int = 0
         matching_edge_properties: int = 0
+        matching_range_literals: int = 0
 
         for variable, self_edge in self.edges.items():
             if variable in other.edges:
@@ -351,14 +400,17 @@ class GraphPattern:
                     matching_edges_labels = len(
                         self_edge.labels.intersection(other_edge.labels)
                     )
-                    if matching_edges_labels > 0:
-                        matching_edges += matching_edges_labels
+                    # if matching_edges_labels > 0:
+                    matching_edges += matching_edges_labels
 
-                        for property_key, property_value in self_edge.properties.items():
-                            if other_edge.properties.get(property_key) == property_value:
-                                matching_edge_properties += 1
+                    for property_key, property_value in self_edge.properties.items():
+                        if other_edge.properties.get(property_key) == property_value:
+                            matching_edge_properties += 1
+                    
+                    if self_edge.range_literal == other_edge.range_literal:
+                        matching_range_literals += 1
 
-        return matching_edges, matching_edge_properties
+        return matching_edges, matching_edge_properties, matching_range_literals
 
     def _count_total_elements(self) -> tuple[int, int, int, int]:
         """Count total nodes, edges, and their properties in this pattern.
@@ -378,7 +430,11 @@ class GraphPattern:
         edge_property_count = sum(
             len(edge.properties) for edge in self.edges.values()
         )
-        return node_count, edge_count, node_property_count, edge_property_count
+        range_literal_count = sum(
+            1 for edge in self.edges.values()
+            if edge.range_literal is not None
+        )
+        return node_count, edge_count, node_property_count, edge_property_count, range_literal_count
 
     def jaccard(self, other: GraphPattern) -> float:
         """Calculate Jaccard similarity between this GraphPattern and another.
@@ -402,7 +458,7 @@ class GraphPattern:
         node_intersection, node_prop_intersection = self._count_node_intersections(
             other
         )
-        edge_intersection, edge_prop_intersection = self._count_edge_intersections(
+        edge_intersection, edge_prop_intersection, range_literal_intersection = self._count_edge_intersections(
             other
         )
 
@@ -414,6 +470,7 @@ class GraphPattern:
             + edge_intersection
             + node_prop_intersection
             + edge_prop_intersection
+            + range_literal_intersection
         )
 
         self_total = sum(self_counts)
@@ -552,7 +609,7 @@ class CypherQuery:
 
     union_queries: List[SingleCypherQuery] = field(default_factory=list)
 
-class CypherPatternExtractor:
+class CypherExtractor:
     """Parses `CypherQuery`s and extracts `GraphPattern` representations.
 
     Uses tree-sitter for parsing with efficient non-recursive tree traversal
@@ -563,13 +620,13 @@ class CypherPatternExtractor:
         parser: The tree-sitter Parser instance configured for Cypher.
 
     Example:
-        >>> extractor = CypherPatternExtractor()
+        >>> extractor = CypherExtractor()
         >>> pattern = extractor.extract_pattern("MATCH (n:Person) RETURN n")
         >>> print(pattern.nodes)
     """
 
     def __init__(self, parser: Optional[Parser] = None) -> None:
-        """Initialize the CypherPatternExtractor.
+        """Initialize the CypherExtractor.
 
         Args:
             parser: Optional tree-sitter Parser. If None, uses the default parser.
@@ -746,7 +803,6 @@ class CypherPatternExtractor:
 
         return pattern, is_optional
 
-    # TODO: handle the choice `seq($.variable, '=', $.anonymous_pattern_part),`
     def _process_pattern(
         self,
         pattern_node: Node,
@@ -778,16 +834,16 @@ class CypherPatternExtractor:
                     if patt_child.type == _VARIABLE_TYPE:
                         symbolic_name_node = patt_child.child(0)
                         variable = self._get_node_text(symbolic_name_node)
-                        current_subgraph = GraphPattern.SubGraph()
-                        pattern_container.sub_graphs[variable] = current_subgraph
+                        current_subgraph = pattern_container.add_subgraph(variable)
                     elif patt_child.type == _ANONYMOUS_PATTERN_PART_TYPE:
                         patt_elem_node = patt_child.child(0)
-                        self._process_pattern_element(patt_elem_node, pattern_container)
+                        self._process_pattern_element(patt_elem_node, pattern_container, current_subgraph)
 
     def _process_pattern_element(
         self,
         patt_elem_node: Node,
         pattern_container: GraphPattern,
+        current_subgraph: Optional[GraphPattern.SubGraph] = None,
     ) -> None:
         """Process a pattern_element node containing nodes and relationships.
 
@@ -820,7 +876,7 @@ class CypherPatternExtractor:
 
             if child_type == _NODE_PATTERN_TYPE:
                 left_node_variable = self._extract_node_from_pattern(
-                    child, pattern_container
+                    child, pattern_container, current_subgraph
                 )
 
             elif child_type == _PATTERN_ELEMENT_CHAIN_TYPE:
@@ -831,13 +887,14 @@ class CypherPatternExtractor:
                 right_node_pattern = child.child(1)
 
                 right_node_variable = self._extract_node_from_pattern(
-                    right_node_pattern, pattern_container
+                    right_node_pattern, pattern_container, current_subgraph
                 )
                 self._extract_relationship(
                     relationship_node,
                     left_node_variable,
                     right_node_variable,
                     pattern_container,
+                    current_subgraph
                 )
                 left_node_variable = right_node_variable
 
@@ -847,6 +904,7 @@ class CypherPatternExtractor:
         left_variable: Optional[str],
         right_variable: Optional[str],
         pattern_container: GraphPattern,
+        current_subgraph: Optional[GraphPattern.SubGraph] = None,
     ) -> None:
         """Extract relationship information from a relationship_pattern node.
 
@@ -928,22 +986,25 @@ class CypherPatternExtractor:
                 properties = self._extract_properties_from_node(detail_child)
 
         if direction_left:
-            pattern_container.add_edge(
+            variable = pattern_container.add_edge(
                 right_variable, left_variable, 
                 labels, properties, edge_variable,
                 range_literal
             )
+            current_subgraph.edges_vars.add(variable)
         if direction_right:
-            pattern_container.add_edge(
+            variable = pattern_container.add_edge(
                 left_variable, right_variable,
                 labels, properties, edge_variable,
                 range_literal
             )
+            current_subgraph.edges_vars.add(variable)
 
     def _extract_node_from_pattern(
         self,
         node_pattern: Node,
         pattern_container: GraphPattern,
+        current_subgraph: Optional[GraphPattern.SubGraph] = None,
     ) -> str:
         """Extract node information from a node_pattern and add to container.
 
@@ -995,7 +1056,9 @@ class CypherPatternExtractor:
             elif child_type == _PROPERTIES_TYPE:
                 properties = self._extract_properties_from_node(child)
 
-        return pattern_container.add_node(labels, properties, variable)
+        variable = pattern_container.add_node(labels, properties, variable)
+        current_subgraph.nodes_vars.add(variable)
+        return variable
 
     # TODO: Handle parameter rule?
     # TODO: Handle expressions?
@@ -1109,10 +1172,10 @@ def compute_graph_pattern_similarity(
             - similarity_score: Jaccard similarity in range [0.0, 1.0]
             - optimal_mapping: GraphPattern.Mapping for best alignment
     """
-    extractor = CypherPatternExtractor()
+    extractor = CypherExtractor()
 
-    generated_pattern: GraphPattern = extractor.extract_pattern(generated_query)
-    ground_truth_pattern: GraphPattern = extractor.extract_pattern(ground_truth_query)
+    generated_pattern: GraphPattern = extractor.extract_pattern(generated_query).union_queries[0].match_pattern
+    ground_truth_pattern: GraphPattern = extractor.extract_pattern(ground_truth_query).union_queries[0].match_pattern
 
     if verbose:
         print(f"Ground Truth Pattern: {ground_truth_pattern}")
@@ -1138,10 +1201,10 @@ def compute_graph_pattern_similarity(
 if __name__ == "__main__":
 
     demo = '''
-MATCH p = (me)<-[:KNOWS*1..2]->(remote_friend), c = ((remote_friend)<-[:LIKES]->(movie:Movie {title: 'The Matrix'}))
+MATCH p = (me)<-[:KNOWS*1..2]->(remote_friend), c = (()<-[:LIKES]->(movie:Movie {title: 'The Matrix'}))
 RETURN me
 '''
-    extractor = CypherPatternExtractor()
+    extractor = CypherExtractor()
     pattern = extractor.extract_query(demo)
     print(pattern.__repr__())
 

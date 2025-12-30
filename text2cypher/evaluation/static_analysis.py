@@ -27,11 +27,11 @@ Examples
 >>> print(f"Similarity: {score:.4f}")
 """
 
-# TODO: Add Data augmentation techniques for 
+# FUTURE: Add Data augmentation techniques for 
 # graph queries e.g. permutations of 
 # clauses and graph patterns.
 
-# TODO: Add the fix for shortestPath and 
+# FUTURE: Add the fix for shortestPath and 
 # allShortestPaths patterns.
 
 from __future__ import annotations
@@ -231,6 +231,7 @@ class ExpressionNodeType(Enum):
     CASE = "case"
     CASE_WHEN = "when"
     CASE_ELSE = "else"
+    CASE_ALTERNATIVE = "case_alternative"
     
     # Quantifiers
     ALL = "all"
@@ -256,8 +257,42 @@ class ExpressionNodeType(Enum):
     WHERE = "where"
     RETURN = "return"
 
+    MAP_ENTRY = "map_entry"
 
-@dataclass
+    PROJECTION_ITEMS = "projection_items"
+    PROJECTION_BODY = "projection_body"
+
+    SKIP = "skip"
+    LABEL = "label"
+    ID_IN_COLL = "id_in_collection"
+    LIMIT = "limit"
+    DISTINCT = "distinct"
+    ORDER = "order"
+    FILTER_EXPRESSION = "filter_expression"
+    COUNT_ALL = "count_all"
+    ALIAS = "alias"
+    ASC = "ascending"
+    DESC = "descending"
+
+COMMUTATIVE_NODES: set[ExpressionNodeType] = {
+    ExpressionNodeType.AND,
+    ExpressionNodeType.OR,
+    ExpressionNodeType.XOR,
+    ExpressionNodeType.ADD,
+    ExpressionNodeType.MUL,
+    ExpressionNodeType.EQ,
+    ExpressionNodeType.MAP_LITERAL,
+    ExpressionNodeType.CASE,
+}
+
+COMPARISON_FLIPS: dict[ExpressionNodeType, ExpressionNodeType] = {
+    ExpressionNodeType.GT: ExpressionNodeType.LT,
+    ExpressionNodeType.LT: ExpressionNodeType.GT,
+    ExpressionNodeType.GTE: ExpressionNodeType.LTE,
+    ExpressionNodeType.LTE: ExpressionNodeType.GTE,
+}
+
+# Candidate for release
 class CypherExpression:
     """Represents a Cypher expression as an Abstract Syntax Tree (AST).
     
@@ -279,13 +314,6 @@ class CypherExpression:
         Child expression nodes for compound expressions. For binary operators,
         typically contains exactly two children. For unary operators, one child.
         For literals and variables, typically empty.
-    metadata : dict[str, Any], default=empty dict
-        Additional metadata about the expression. Examples include:
-        - 'function_name' for function invocations
-        - 'property_name' for property access
-        - 'order' for ORDER BY direction ('ASC' or 'DESC')
-        - 'as' for aliased expressions
-        - 'distinct' for DISTINCT modifiers
     
     Attributes
     ----------
@@ -295,8 +323,6 @@ class CypherExpression:
         The value associated with this node.
     children : List[CypherExpression]
         Child expression nodes.
-    metadata : dict[str, Any]
-        Additional node metadata.
     
     Methods
     -------
@@ -304,8 +330,6 @@ class CypherExpression:
         Convert expression to canonical form for comparison.
     to_zss_tree() -> ZssNode
         Convert this expression to a zss tree for edit distance computation.
-    tree_edit_distance(other: CypherExpression) -> int
-        Compute tree edit distance to another expression.
     similarity_score(other: CypherExpression) -> float
         Compute normalized similarity score based on tree edit distance.
     get_tree_str(indent: int = 0) -> str
@@ -329,10 +353,17 @@ class CypherExpression:
     >>> var = CypherExpression(node_type=ExpressionNodeType.VARIABLE, value="a")
     """
     
-    node_type: ExpressionNodeType
-    value: Optional[Any] = None
-    children: List[CypherExpression] = field(default_factory=list)
-    metadata: dict[str, Any] = field(default_factory=dict)
+    __slots__ = ("node_type", "value", "children")
+
+    def __init__(
+        self,
+        node_type: ExpressionNodeType,
+        value: Optional[Any] = None,
+        children: Optional[List[CypherExpression]] = None,
+    ):
+        self.node_type = node_type
+        self.value = value
+        self.children = children if children is not None else []
     
     def to_canonical_form(self) -> CypherExpression:
         """Convert expression to canonical form for comparison.
@@ -375,51 +406,44 @@ class CypherExpression:
         >>> expr2 = CypherExpression(node_type=ExpressionNodeType.GT, children=[...])
         >>> canonical2 = expr2.to_canonical_form()
         """
-        # Recursively canonicalize children first
-        canonical_children = [child.to_canonical_form() for child in self.children]
+        
+        stack = [(self, False)]
+        children_stack = []
+        while stack:
+            node, visited = stack.pop()
+            if visited:
+                canonical_children = children_stack.pop()
+                new_type = node.node_type
 
-        
-        # Define commutative operators
-        commutative_ops = {
-            ExpressionNodeType.AND,
-            ExpressionNodeType.OR,
-            ExpressionNodeType.XOR,
-            ExpressionNodeType.ADD,
-            ExpressionNodeType.MUL,
-            ExpressionNodeType.EQ,
-        }
-        
-        # Define comparison operators that can be flipped
-        comparison_flips = {
-            ExpressionNodeType.GT: ExpressionNodeType.LT,
-            ExpressionNodeType.LT: ExpressionNodeType.GT,
-            ExpressionNodeType.GTE: ExpressionNodeType.LTE,
-            ExpressionNodeType.LTE: ExpressionNodeType.GTE,
-        }
-        
-        # Sort children for commutative operations
-        if self.node_type in commutative_ops and len(canonical_children) >= 2:
-            canonical_children.sort(key=lambda x: self._expression_sort_key(x))
-        
-        # Normalize comparisons: prefer smaller expression on left
-        elif self.node_type in comparison_flips and len(canonical_children) == 2:
-            left, right = canonical_children
-            if self._expression_sort_key(left) > self._expression_sort_key(right):
-                # Flip the comparison
-                canonical_children = [right, left]
-                new_type = comparison_flips[self.node_type]
-                return CypherExpression(
+                # Sort children for commutative operations
+                if node.node_type in COMMUTATIVE_NODES and len(canonical_children) >= 2:
+                    canonical_children.sort(key=lambda x: self._expression_sort_key(x))
+                    
+                # Normalize comparisons: prefer smaller expression on left
+                elif node.node_type in COMPARISON_FLIPS and len(canonical_children) == 2:
+                    left, right = canonical_children
+                    if self._expression_sort_key(left) > self._expression_sort_key(right):
+                        # Flip the comparison
+                        canonical_children = [right, left]
+                        new_type = COMPARISON_FLIPS[node.node_type]
+                
+                new_node = CypherExpression(
                     node_type=new_type,
+                    value=node.value,
                     children=canonical_children,
-                    metadata=self.metadata.copy()
                 )
+
+                if children_stack:
+                    children_stack[-1].append(new_node)
+
+            else:
+                # First time visiting this node
+                stack.append((node, True))
+                for child in reversed(node.children):
+                    stack.append((child, False))
+                children_stack.append([])
         
-        return CypherExpression(
-            node_type=self.node_type,
-            value=self.value,
-            children=canonical_children,
-            metadata=self.metadata.copy()
-        )
+        return new_node
     
     @staticmethod
     def _expression_sort_key(expr: CypherExpression) -> tuple:
@@ -466,12 +490,60 @@ class CypherExpression:
         
         return (priority, value_str, children_count, expr.node_type.value)
     
+    def map_variables(self, var_mapping: dict[str, str]) -> CypherExpression:
+        """Map variable names in the expression according to a given mapping.
+        
+        This method creates a new CypherExpression where all variable names
+        are replaced according to the provided mapping. It recursively
+        processes the entire expression tree.
+        
+        Parameters
+        ----------
+        var_mapping : dict[str, str]
+            A dictionary mapping original variable names to new variable names.
+        
+        Returns
+        -------
+        CypherExpression
+            A new CypherExpression instance with variables renamed according
+            to the mapping. The original expression is not modified.
+        """
+        stack = [(self, False)]
+        children_stack = []
+        while stack:
+            node, visited = stack.pop()
+            if visited:
+                mapped_children = children_stack.pop()
+                
+                # Map variable names if this is a VARIABLE node
+                new_value = node.value
+                if node.node_type == ExpressionNodeType.VARIABLE and node.value in var_mapping:
+                    new_value = var_mapping[node.value]
+                
+                new_node = CypherExpression(
+                    node_type=node.node_type,
+                    value=new_value,
+                    children=mapped_children,
+                )
+
+                if children_stack:
+                    children_stack[-1].append(new_node)
+
+            else:
+                # First time visiting this node
+                stack.append((node, True))
+                for child in reversed(node.children):
+                    stack.append((child, False))
+                children_stack.append([])
+        
+        return new_node
+
     def to_zss_tree(self) -> ZssNode:
         """Convert this expression to a zss tree for edit distance computation.
         
         The zss library (Zhang-Shasha algorithm) is used to compute tree edit
-        distance between two ASTs. Each node is labeled with its type, value,
-        and metadata for accurate comparison.
+        distance between two ASTs. Each node is labeled with its type and value
+        for accurate comparison.
         
         Returns
         -------
@@ -482,15 +554,10 @@ class CypherExpression:
         Notes
         -----
         Node labels are formatted as:
-            - "{node_type}" for nodes without value or metadata
+            - "{node_type}" for nodes without value
             - "{node_type}: {value}" for nodes with values
-            - "{node_type}: {value} [{metadata}]" for nodes with metadata
         
         The tree structure is preserved through recursive conversion of children.
-        
-        See Also
-        --------
-        tree_edit_distance : Computes distance using the ZSS tree representation
         
         Examples
         --------
@@ -501,64 +568,32 @@ class CypherExpression:
         >>> zss_tree = expr.to_zss_tree()
         >>> # zss_tree can now be used with zss.simple_distance()
         """
-        label =f"{self.node_type.value}"
-        if self.value is not None:
-            label += f": {self.value}"
-        if self.metadata:
-            metadata_str = ", ".join(f"{k}={v}" for k, v in self.metadata.items())
-            label += f" [{metadata_str}]"
         
-        # Recursively convert children
-        zss_children = [child.to_zss_tree() for child in self.children]
-        
-        return ZssNode(label, zss_children)
-    
-    def tree_edit_distance(self, other: CypherExpression) -> int:
-        """Compute tree edit distance to another expression.
-        
-        Uses the zss library to compute the minimum number of node insertions,
-        deletions, and relabelings needed to transform this tree into the other.
-        This implements the Zhang-Shasha tree edit distance algorithm.
-        
-        Both expressions should be in canonical form before calling this method
-        for best results, as this ensures semantically equivalent expressions
-        are compared correctly.
-        
-        Parameters
-        ----------
-        other : CypherExpression
-            The expression to compare against.
-        
-        Returns
-        -------
-        int
-            The tree edit distance (integer >= 0). Lower values indicate
-            more similar expressions. A distance of 0 means the trees are
-            structurally identical.
-        
-        Notes
-        -----
-        The tree edit distance counts the minimum number of operations needed:
-            - Insert a node
-            - Delete a node
-            - Relabel a node (change its type or value)
-        
-        See Also
-        --------
-        similarity_score : Normalized version of tree edit distance
-        to_canonical_form : Should be called before computing distance
-        
-        Examples
-        --------
-        >>> expr1 = CypherExpression(...).to_canonical_form()
-        >>> expr2 = CypherExpression(...).to_canonical_form()
-        >>> distance = expr1.tree_edit_distance(expr2)
-        >>> print(f"Edit distance: {distance}")
-        """
-        self_tree = self.to_zss_tree()
-        other_tree = other.to_zss_tree()
-        
-        return simple_distance(self_tree, other_tree)
+        stack = [(self, False)]
+        zss_children_stack = []
+        while stack:
+            node, visited = stack.pop()
+            if visited:
+                zss_children = zss_children_stack.pop()
+                
+                # Create label
+                label = f"{node.node_type.value}"
+                if node.value is not None:
+                    label += f": {node.value}"
+                
+                zss_node = ZssNode(label, zss_children)
+
+                if zss_children_stack:
+                    zss_children_stack[-1].append(zss_node)
+
+            else:
+                # First time visiting this node
+                stack.append((node, True))
+                for child in reversed(node.children):
+                    stack.append((child, False))
+                zss_children_stack.append([])
+
+        return zss_node
     
     def _count_nodes(self) -> int:
         """Count the total number of nodes in this expression tree.
@@ -572,7 +607,18 @@ class CypherExpression:
             Total number of nodes including this node and all descendants.
             Minimum value is 1 (for a leaf node).
         """
-        return 1 + sum(child._count_nodes() for child in self.children)
+        
+        stack = [self]
+        count = 0
+        while stack:
+            node = stack.pop()
+            count += 1
+            for child in node.children:
+                stack.append(child)
+
+        return count
+        
+        # return 1 + sum(child._count_nodes() for child in self.children)
 
     def similarity_score(self, other: CypherExpression) -> float:
         """Compute similarity score based on tree edit distance.
@@ -604,10 +650,6 @@ class CypherExpression:
         
         Special case: If both trees are empty, returns 1.0.
         
-        See Also
-        --------
-        tree_edit_distance : Computes the raw edit distance
-        
         Examples
         --------
         >>> expr1 = CypherExpression(...)
@@ -615,7 +657,10 @@ class CypherExpression:
         >>> score = expr1.similarity_score(expr2)
         >>> print(f"Similarity: {score:.2%}")
         """
-        distance = self.tree_edit_distance(other)
+        self_tree = self.to_zss_tree()
+        other_tree = other.to_zss_tree()
+        
+        distance = simple_distance(self_tree, other_tree)
         
         # Compute tree sizes (number of nodes)
         self_size = self._count_nodes()
@@ -666,7 +711,6 @@ class CypherExpression:
             A multi-line string showing the tree structure with:
             - Node type on each line
             - Value (if present) after the node type
-            - Metadata (if present) in square brackets
             - Children indented by 2 spaces per level
         
         Examples
@@ -689,53 +733,74 @@ class CypherExpression:
             node, current_indent = stack.pop()
             
             # Format current node
-            prefix = "  " * current_indent
+            prefix = " " * current_indent
             line = f"{prefix}{node.node_type.value}"
             if node.value is not None:
                 line += f": {node.value}"
-            if node.metadata:
-                metadata_str = ", ".join(f"{k}={v}" for k, v in node.metadata.items())
-                line += f" [{metadata_str}]"
             
             output_lines.append(line)
             
             # Add children to stack in reverse order to maintain left-to-right traversal
             for child in reversed(node.children):
-                stack.append((child, current_indent + 1))
+                stack.append((child, current_indent + 2))
         
         return "\n".join(output_lines)
 
     def __str__(self) -> str:
         return self.get_tree_str()
 
-    def __eq__(self, other: Any) -> bool:
+    def deep_equality(self, other: Any, deep: bool = False) -> bool:
         """Check equality between two CypherExpression instances.
         
-        Compares node type, value, and metadata. Note that children are
-        commented out in the comparison to avoid infinite recursion issues.
+        Compares node type and value. If deep=True, also compares
+        children recursively thus checking full tree equality.
         
         Parameters
         ----------
         other : Any
             The other object to compare against.
+        deep : bool, default=False
+            If True, perform a deep comparison including children. If False,
+            only compare node_type and value.
         
         Returns
         -------
         bool
-            True if node_type, value, and metadata are equal, False otherwise.
+            If deep is False, returns True if node_type and value
+            are equal. If deep is True, also checks the full tree comparison.
+        
+        Raises
+        ------
         NotImplemented
             If other is not a CypherExpression instance.
         """
         if not isinstance(other, CypherExpression):
             return NotImplemented
-        return (
-            self.node_type == other.node_type
-            and self.value == other.value
-            # This is a recursive check
-            # and self.children == other.children
-            and self.metadata == other.metadata
-        )
+        
+        stack = [(self, other)]
+        are_equal = True
 
+        while stack and are_equal == True:
+            expr1, expr2 = stack.pop()
+            
+            if expr1.node_type != expr2.node_type:
+                are_equal = False
+            if expr1.value != expr2.value:
+                are_equal = False
+            
+            if deep:
+                if len(expr1.children) != len(expr2.children):
+                    are_equal = False
+                for child1, child2 in zip(expr1.children, expr2.children):
+                    stack.append((child1, child2))
+            
+        return are_equal
+
+    def __eq__(self, other: Any) -> bool:
+        return self.deep_equality(other)
+        
+
+# Candidate for release
 class GraphPattern:
     """Represents the extracted graph structure from a Cypher query.
 
@@ -773,7 +838,7 @@ class GraphPattern:
         Create a new GraphPattern with variables renamed according to the mapping.
     jaccard(other) -> float
         Calculate Jaccard similarity between this GraphPattern and another.
-    find_optimal_mapping(other, similarity_metric, minimize=False) -> tuple[float, GraphPattern.Mapping]
+    find_optimal_mapping(other, score_fn, minimize=False) -> tuple[float, GraphPattern.Mapping]
         Find the optimal variable mapping between this pattern and another.
 
     Notes
@@ -797,7 +862,6 @@ class GraphPattern:
     >>> e = pattern.add_edge(n1, n2, labels={'KNOWS'}, properties={})
     """
 
-    @dataclass
     class Node:
         """Represents a node in the graph pattern with labels and properties.
 
@@ -826,10 +890,19 @@ class GraphPattern:
         ... )
         """
 
-        labels: set[str] = field(default_factory=set)
-        properties: dict[str, CypherExpression] = field(default_factory=dict)
+        __slots__ = ("labels", "properties")
 
-    @dataclass
+        # labels: set[str] = field(default_factory=set)
+        # properties: dict[str, CypherExpression] = field(default_factory=dict)
+
+        def __init__(
+                self, 
+                labels: set[str] = set(), 
+                properties: dict[str, CypherExpression] = dict()
+            ) -> None:
+            self.labels = labels
+            self.properties = properties
+            
     class Edge:
         """Represents a relationship/edge in the graph pattern.
 
@@ -884,12 +957,33 @@ class GraphPattern:
         ... )
         """
 
-        from_node: str
-        to_node: str
-        labels: set[str] = field(default_factory=set)
-        properties: dict[str, CypherExpression] = field(default_factory=dict)
-        variable: Optional[str] = None
-        range_literal: Optional[str] = None
+        __slots__ = (
+            "from_node",
+            "to_node",
+            "labels",
+            "properties",
+            "range_literal",
+        )
+
+        # from_node: str # variable name of the source node
+        # to_node: str # variable name of the target node
+        # labels: set[str] = field(default_factory=set)
+        # properties: dict[str, CypherExpression] = field(default_factory=dict)
+        # range_literal: Optional[str] = None
+
+        def __init__(
+            self,
+            from_node: str,
+            to_node: str,
+            labels: set[str] = set(),
+            properties: dict[str, CypherExpression] = dict(),
+            range_literal: Optional[str] = None,
+        ) -> None:
+            self.from_node = from_node
+            self.to_node = to_node
+            self.labels = labels
+            self.properties = properties
+            self.range_literal = range_literal
 
         def __eq__(self, other: Any) -> bool:
             """Check equality between two Edge instances.
@@ -1134,7 +1228,6 @@ class GraphPattern:
                 to_node=to_node,
                 labels=set(),
                 properties={},
-                variable=edge_variable,
                 range_literal=range_literal,
             )
 
@@ -1191,6 +1284,7 @@ class GraphPattern:
         return self.sub_graphs[variable]
 
     # TODO: Add support for subgraph mappings
+    # TODO: The mapping should be applied also to the where expression
     def apply_mapping(self, mapping: GraphPattern.Mapping) -> GraphPattern:
         """Create a new GraphPattern with variables renamed according to the mapping.
 
@@ -1480,6 +1574,7 @@ class GraphPattern:
 
         return total_intersection / total_union
 
+    # WARNING: Worst case complexity is O(n!) when both sets are of equal size.
     @staticmethod
     def _generate_injective_mappings(
         source_variables: list[str],
@@ -1516,15 +1611,7 @@ class GraphPattern:
         The number of mappings generated is:
             P(n, k) = n! / (n-k)! where n = len(larger_set), k = len(smaller_set)
         
-        Examples
-        --------
-        >>> mappings = list(GraphPattern._generate_injective_mappings(
-        ...     ['a', 'b'],
-        ...     ['x', 'y', 'z']
-        ... ))
-        >>> len(mappings)  # 3! / (3-2)! = 6
-        6
-        >>> mappings[0]  # Example: {'a': 'x', 'b': 'y'}
+        The worst-case complexity is O(n!) when both sets are of equal size.
         """
         if not source_variables and not target_variables:
             yield {}
@@ -1537,10 +1624,10 @@ class GraphPattern:
         source_is_smaller = len(source_variables) <= len(target_variables)
 
         if source_is_smaller:
-            smaller_set = source_variables
+            smaller_set = source_variables # TODO: add none 
             larger_set = target_variables
         else:
-            smaller_set = target_variables
+            smaller_set = target_variables # TODO: add none
             larger_set = source_variables
 
         for permutation in itertools.permutations(larger_set, len(smaller_set)):
@@ -1549,10 +1636,11 @@ class GraphPattern:
             else:
                 yield {large: small for small, large in zip(smaller_set, permutation)}
 
+    # TODO: Add support for subgraph mappings
     def find_optimal_mapping(
         self,
         other: GraphPattern,
-        similarity_metric: Callable[[GraphPattern, GraphPattern], float],
+        score_fn: Callable[[GraphPattern, GraphPattern], float],
         minimize: bool = False,
     ) -> tuple[float, GraphPattern.Mapping]:
         """Find the optimal variable mapping between this pattern and another.
@@ -1565,7 +1653,7 @@ class GraphPattern:
         ----------
         other : GraphPattern
             The target GraphPattern to map to.
-        similarity_metric : Callable[[GraphPattern, GraphPattern], float]
+        score_fn : Callable[[GraphPattern, GraphPattern], float]
             A callable that takes two GraphPatterns and returns a float score.
             Signature: metric(mapped_self, other) -> float.
             The first argument will be this pattern with variables remapped,
@@ -1588,6 +1676,8 @@ class GraphPattern:
             - P(n, k) = n!/(n-k)! is the number of node mappings
             - P(m, l) = m!/(m-l)! is the number of edge mappings
             - metric_cost is the cost of evaluating the similarity metric
+
+        The worst-case complexity is O(N_nodes! x N_edges!) when both sets are of equal size.
         
         For large patterns, this exhaustive search can be expensive. Consider
         using heuristic approaches for very large patterns.
@@ -1601,7 +1691,7 @@ class GraphPattern:
         >>> pattern2 = GraphPattern()  # (x:Person)-[s:KNOWS]->(y:Person)
         >>> score, mapping = pattern1.find_optimal_mapping(
         ...     pattern2,
-        ...     similarity_metric=lambda p1, p2: p1.jaccard(p2),
+        ...     score_fn=lambda p1, p2: p1.jaccard(p2),
         ...     minimize=False
         ... )
         >>> # mapping.nodes_map might be {'a': 'x', 'b': 'y'}
@@ -1619,10 +1709,16 @@ class GraphPattern:
             and not target_edge_variables
         )
         if is_empty:
-            return similarity_metric(self, other), GraphPattern.Mapping()
+            return score_fn(self, other), GraphPattern.Mapping()
 
         best_mapping = GraphPattern.Mapping()
 
+        '''
+        TODO: se entrambi i graph pattern sono completamente diversi
+        questo metodo dovrebbe restituire una mappatura vuota tuttavia
+        l'implementazione attuale restituirà una mappatura arbitraria
+        tra tutte le mappature possibili che in questo caso avranno tutte score 0.
+        '''
         if minimize:
             best_score = float('inf')
             is_better = lambda new, old: new < old
@@ -1649,7 +1745,7 @@ class GraphPattern:
                 )
 
                 aligned_pattern = self.apply_mapping(candidate_mapping)
-                score = similarity_metric(aligned_pattern, other)
+                score = score_fn(aligned_pattern, other)
 
                 if is_better(score, best_score):
                     best_score = score
@@ -1667,16 +1763,73 @@ class GraphPattern:
         """
         return f"GraphPattern(nodes={self.nodes!r}, edges={self.edges!r}), sub_graphs={self.sub_graphs!r})"
 
+    def to_str(self, indent: int = 0) -> str:
+        prefix = " " * indent
+
+        # total_str = prefix + f"GraphPattern:\n"
+
+        nodes_str = prefix + f"Nodes:\n"
+        for var, node in self.nodes.items():
+            nodes_str += prefix + f"  ({var}:{"|".join(node.labels)})\n"
+            nodes_str += prefix + "    Properties:\n"
+
+            for k, v in node.properties.items():
+                nodes_str += prefix + f"      {k}:\n"
+                nodes_str += f"{v.get_tree_str(indent=indent + 8)}\n"
+
+        edges_str = prefix + f"Edges:\n"
+        for var, edge in self.edges.items():
+            edges_str += prefix + f"  ({edge.from_node})-[{var}:{"|".join(edge.labels)}" + \
+                f"{edge.range_literal if edge.range_literal else ''}]->({edge.to_node})\n"
+            edges_str += prefix + "    Properties:\n"
+            for k, v in edge.properties.items():
+                edges_str += prefix + f"      {k}:\n"
+                edges_str += f"{v.get_tree_str(indent=indent + 8)}\n"
+                
+        subgraphs_str = prefix + f"SubGraphs:\n"
+        for var, subgraph in self.sub_graphs.items():
+            subgraphs_str += prefix + f"  {var}:\n"
+            subgraphs_str += prefix + "    Nodes: " + ", ".join(subgraph.nodes_vars) + "\n"
+            subgraphs_str += prefix + "    Edges: " + ", ".join(subgraph.edges_vars) + "\n"
+
+        where_str = prefix + f"WHERE Clause:\n"
+        where_str += self.where.get_tree_str(indent=indent) + "\n"
+
+        return nodes_str + edges_str + subgraphs_str + where_str
+
+    def __str__(self) -> str:
+        return self.to_str()
+
 @dataclass
 class SingleCypherQuery:
 
     match_pattern: GraphPattern = field(default_factory=GraphPattern)
-    optional_match_pattern: Optional[GraphPattern] = field(default_factory=GraphPattern)
+    optional_match_pattern: GraphPattern = field(default_factory=GraphPattern)
     return_expr: CypherExpression = field(
         default_factory=lambda: CypherExpression(
             node_type=ExpressionNodeType.RETURN
         )
     )
+
+    def to_str(self, indent: int = 0) -> str:
+        prefix = " " * indent
+        # optional_match_str = (
+        #     self.optional_match_pattern.to_str(indent=indent + 4)
+        #     if self.optional_match_pattern is not None
+        #     else f"{prefix}  (none)"
+        # )
+        return (
+            f"{prefix}SingleCypherQuery:\n"
+            f"{prefix}  MATCH Pattern:\n"
+            f"{self.match_pattern.to_str(indent=indent + 4)}\n"
+            f"{prefix}  OPTIONAL MATCH Pattern:\n"
+            f"{self.optional_match_pattern.to_str(indent=indent + 4)}\n"
+            f"{prefix}  RETURN Expression:\n"
+            f"{self.return_expr.get_tree_str(indent=indent + 4)}"
+        )
+    
+    def __str__(self) -> str:
+        return self.to_str()
 
     # TODO: Implement similarity scores for SingleCypherQuery
 
@@ -1828,7 +1981,7 @@ class CypherExtractor:
         """
         return tree_node.text.decode("utf-8")
 
-    # TODO: Handle also standalone calls?
+    # FUTURE: Handle also standalone calls?
     def extract_query(self, cypher_query: str) -> CypherQuery:
         """Extract a CypherQuery from a Cypher query string.
 
@@ -1902,7 +2055,7 @@ class CypherExtractor:
                 query.union_queries.append(union_query)
         else: # standalone_call
             raise NotImplementedError(
-                f"'{child.type}' queries are not supported yet."
+                f"'{child.type}' extraction not supported yet."
             )
         return query
     
@@ -1976,19 +2129,35 @@ class CypherExtractor:
                     if reading_clause_child.type == _MATCH_TYPE:
                         self._process_match_clause(reading_clause_child, single_cypher_query)
                     else: # unwind, in_query_call
-                        print(
-                            "[WARNING]: Reading clauses of type "
-                            f"'{reading_clause_child.type}' are not supported yet."
+                        # print(
+                        #     "[WARNING]: Reading clauses of type "
+                        #     f"'{reading_clause_child.type}' are not supported yet."
+                        # )
+                        raise NotImplementedError(
+                            f"'{reading_clause_child.type}' extraction not supported yet."
                         )
                 elif child.type == _RETURN_TYPE:
                     single_cypher_query.return_expr = self._extract_expression(child)
                 else:  # child.type == _UPDATING_CLAUSE_TYPE
-                    print("[WARNING]: Updating clauses are not processed and supported yet.")
+                    # print(f"[WARNING]: '{child.type}' clauses are not processed and supported yet.")
+                    raise NotImplementedError(
+                        f"'{child.type}' extraction not supported yet."
+                    )
             return single_cypher_query                  
         else: # multi_part_query
+            # for child in single_query_child.children:
+            #     if child.type == "with":
+            #         print(self._get_node_text(child))
+            # print()
             raise NotImplementedError(
-                "[ERROR]: Multi-part queries are not supported yet."
+                f"'{single_query_child.type}' extraction not supported yet."
             )
+
+    '''
+    ##################################################
+    MATCH Clause Processing
+    ##################################################
+    '''
 
     def _process_match_clause(self, match_node: Node, single_cypher_query: SingleCypherQuery) -> None:
         """Process a MATCH clause node to extract pattern information.
@@ -2409,7 +2578,7 @@ class CypherExtractor:
             current_subgraph.nodes_vars.add(variable)
         return variable
 
-    # TODO: Handle parameter rule?
+    # FUTURE: Handle parameter rule?
     def _extract_properties_from_node(
         self, properties_node: Node
     ) -> dict[str, Any]:
@@ -2463,7 +2632,7 @@ class CypherExtractor:
         if child.type != _MAP_LITERAL_TYPE:
             # For now do not handle parameter rules
             raise NotImplementedError(
-                f"Properties of type '{child.type}' not implemented."
+                f"'{child.type}' extraction not supported yet."
             )
 
         properties: dict[str, CypherExpression] = {}
@@ -2483,7 +2652,15 @@ class CypherExtractor:
         return properties
 
 
-    def _extract_expression(self, expression_node: Node) -> Optional[CypherExpression]:
+    '''
+    ==================================================
+    Expression Extraction
+    ==================================================
+    '''
+
+    # WARNING(RECURSION): All expression extraction methods are recursive!
+
+    def _extract_expression(self, expression_node: Node) -> CypherExpression:
         """Extract a Cypher expression and convert it to CypherExpression AST.
         
         This method recursively parses tree-sitter expression nodes and converts
@@ -2519,7 +2696,7 @@ class CypherExtractor:
         
         Returns
         -------
-        Optional[CypherExpression]
+        CypherExpression
             A CypherExpression AST representing the parsed expression, or None
             if the expression could not be parsed.
         
@@ -2598,11 +2775,10 @@ class CypherExtractor:
         # Atoms (base cases)
         elif child_type == "atom":
             return self._extract_atom_expression(child)
-
-        else:
-            raise NotImplementedError(f"Expression type '{child_type}' not implemented.")
     
-    def _extract_projection_body(self, node: Node) -> Optional[CypherExpression]:
+    # =========== RETURN expression ===========
+
+    def _extract_projection_body(self, node: Node) -> CypherExpression:
         """Extract a projection body from RETURN or WITH clauses.
         
         Parses the projection body which includes the items to return/project,
@@ -2628,7 +2804,7 @@ class CypherExtractor:
 
         Returns
         -------
-        Optional[CypherExpression]
+        CypherExpression
             A CypherExpression with node_type=PROJECTION_BODY containing children:
             - DISTINCT expression (if present)
             - PROJECTION_ITEMS expression (always present)
@@ -2671,7 +2847,7 @@ class CypherExtractor:
             children=children
         )
 
-    def _extract_order_expression(self, node: Node) -> Optional[CypherExpression]:
+    def _extract_order_expression(self, node: Node) -> CypherExpression:
         """Extract ORDER BY clause expression.
         
         Parses the ORDER BY clause which contains one or more sort items,
@@ -2705,9 +2881,9 @@ class CypherExtractor:
 
         Returns
         -------
-        Optional[CypherExpression]
+        CypherExpression
             A CypherExpression with node_type=ORDER containing children expressions,
-            each with optional 'order' metadata set to 'ASC' or 'DESC'.
+            each with optional ASC or DESC children.
         """
         children: List[CypherExpression] = []
         for child in node.children:
@@ -2717,9 +2893,17 @@ class CypherExtractor:
                 if child.child_count == 2:
                     order_direction = child.child(1).type
                     if order_direction in ["asc", "ascending"]:
-                        sort_item_expr.metadata['order'] = 'ASC'
+                        sort_item_expr.children.append(
+                            CypherExpression(
+                                node_type=ExpressionNodeType.ASC
+                            )
+                        )
                     elif order_direction in ["desc", "descending"]:
-                        sort_item_expr.metadata['order'] = 'DESC'
+                        sort_item_expr.children.append(
+                            CypherExpression(
+                                node_type=ExpressionNodeType.DESC
+                            )
+                        )
                 children.append(sort_item_expr)
 
         return CypherExpression(
@@ -2727,7 +2911,7 @@ class CypherExtractor:
             children=children
         )
 
-    def _extract_projection_items(self, node: Node) -> Optional[CypherExpression]:
+    def _extract_projection_items(self, node: Node) -> CypherExpression:
         """Extract projection items from RETURN or WITH clauses.
         
         Parses the items to be returned/projected, which can be either * (all)
@@ -2760,10 +2944,10 @@ class CypherExtractor:
 
         Returns
         -------
-        Optional[CypherExpression]
+        CypherExpression
             A CypherExpression with node_type=PROJECTION_ITEMS containing children:
             - ALL_PROPERTIES expression (if * is present)
-            - Individual projection expressions (with optional 'as' metadata for aliases)
+            - Individual projection expressions with optional ALIAS children
         """
         children: List[CypherExpression] = []
         for child in node.children:
@@ -2777,7 +2961,13 @@ class CypherExtractor:
             elif child_type == 'projection_item':
                 projection_item_expr = self._extract_expression(child.child(0))
                 if child.child_count == 3:
-                    projection_item_expr.metadata['as'] = self._get_node_text(child.child(2))
+                    # add alias as first child
+                    projection_item_expr.children.insert(0,
+                        CypherExpression(
+                            node_type=ExpressionNodeType.ALIAS,
+                            value=self._get_node_text(child.child(2))
+                        )
+                    )
                 children.append(projection_item_expr)
 
         return CypherExpression(
@@ -2785,9 +2975,12 @@ class CypherExtractor:
             children=children
         )
 
+
+
+
     def _extract_binary_expression(
         self, node: Node, op_type: ExpressionNodeType
-    ) -> Optional[CypherExpression]:
+    ) -> CypherExpression:
         """Extract a binary expression.
         
         Parses binary operators including logical (OR, XOR, AND) and arithmetic
@@ -2818,7 +3011,7 @@ class CypherExtractor:
 
         Returns
         -------
-        Optional[CypherExpression]
+        CypherExpression
             A CypherExpression with the specified op_type and two children
             (left and right operands).
         """
@@ -2833,7 +3026,7 @@ class CypherExtractor:
     
     def _extract_unary_expression(
         self, node: Node, op_type: ExpressionNodeType
-    ) -> Optional[CypherExpression]:
+    ) -> CypherExpression:
         """Extract a unary expression.
         
         Parses unary operators, primarily the NOT operator for logical negation.
@@ -2859,7 +3052,7 @@ class CypherExtractor:
 
         Returns
         -------
-        Optional[CypherExpression]
+        CypherExpression
             A CypherExpression with the specified op_type and one child (operand).
         """
         operand = self._extract_expression(node.child(1))
@@ -2868,7 +3061,7 @@ class CypherExtractor:
             children=[operand]
         )
     
-    def _extract_comparison_expression(self, node: Node) -> Optional[CypherExpression]:
+    def _extract_comparison_expression(self, node: Node) -> CypherExpression:
         """Extract comparison expressions.
         
         Parses comparison operators including equality, inequality, and
@@ -2900,7 +3093,7 @@ class CypherExtractor:
 
         Returns
         -------
-        Optional[CypherExpression]
+        CypherExpression
             A CypherExpression with the appropriate comparison operator type
             (EQ, NEQ, LT, GT, LTE, or GTE) and two children (left and right operands).
         """
@@ -2924,7 +3117,7 @@ class CypherExtractor:
             children=[left_expr, right_expr]
         )
     
-    def _extract_predicate_expression(self, node: Node) -> Optional[CypherExpression]:
+    def _extract_predicate_expression(self, node: Node) -> CypherExpression:
         """Extract string/list/null predicate expressions.
         
         Parses predicate expressions for string operations (STARTS WITH, ENDS WITH,
@@ -2976,7 +3169,7 @@ class CypherExtractor:
 
         Returns
         -------
-        Optional[CypherExpression]
+        CypherExpression
             A CypherExpression with the appropriate predicate type:
             - IN: base_expr IN predicate_expr
             - STARTS_WITH/ENDS_WITH/CONTAINS: string predicate with two operands
@@ -2993,14 +3186,17 @@ class CypherExtractor:
                 children=[base_expr, predicate_expr]
             )
         elif predicate_node.type == "string_predicate_expression":
-            text = self._get_node_text(predicate_node).lower()
-            if "starts" in text:
+            # text = self._get_node_text(predicate_node).lower()
+            child_text = self._get_node_text(predicate_node.child(0)).lower()
+            if child_text == "starts":
                 predicate_type = ExpressionNodeType.STARTS_WITH
-            elif "ends" in text:
+                predicate_expr = self._extract_expression(predicate_node.child(2))
+            elif child_text == "ends":
                 predicate_type = ExpressionNodeType.ENDS_WITH
-            elif "contains" in text:
+                predicate_expr = self._extract_expression(predicate_node.child(2))
+            elif child_text == "contains":
                 predicate_type = ExpressionNodeType.CONTAINS
-            predicate_expr = self._extract_expression(predicate_node.child(1))
+                predicate_expr = self._extract_expression(predicate_node.child(1))
             return CypherExpression(
                 node_type=predicate_type,
                 children=[base_expr, predicate_expr]
@@ -3016,7 +3212,7 @@ class CypherExtractor:
                 children=[base_expr]
             )
     
-    def _extract_arithmetic_expression(self, node: Node) -> Optional[CypherExpression]:
+    def _extract_arithmetic_expression(self, node: Node) -> CypherExpression:
         """Extract arithmetic expressions.
         
         Parses additive (+, -) and multiplicative (*, /, %) arithmetic operators.
@@ -3054,7 +3250,7 @@ class CypherExtractor:
 
         Returns
         -------
-        Optional[CypherExpression]
+        CypherExpression
             A CypherExpression with the appropriate arithmetic operator type
             (ADD, SUB, MUL, DIV, or MOD) and two children (left and right operands).
         """
@@ -3077,7 +3273,7 @@ class CypherExtractor:
             children=[left_expr, right_expr]
         )
     
-    def _extract_unary_arithmetic_expression(self, node: Node) -> Optional[CypherExpression]:
+    def _extract_unary_arithmetic_expression(self, node: Node) -> CypherExpression:
         """Extract unary arithmetic expressions.
         
         Parses unary plus (+) and minus (-) operators, which negate or affirm
@@ -3101,7 +3297,7 @@ class CypherExtractor:
 
         Returns
         -------
-        Optional[CypherExpression]
+        CypherExpression
             A CypherExpression with type UNARY_PLUS or UNARY_MINUS and one
             child (the operand).
         """
@@ -3119,7 +3315,7 @@ class CypherExtractor:
             children=[operand]
         )
     
-    def _extract_list_operator_expression(self, node: Node) -> Optional[CypherExpression]:
+    def _extract_list_operator_expression(self, node: Node) -> CypherExpression:
         """Extract list indexing and slicing expressions.
         
         Parses list access operations including single element indexing and
@@ -3153,7 +3349,7 @@ class CypherExtractor:
 
         Returns
         -------
-        Optional[CypherExpression]
+        CypherExpression
             A CypherExpression with type:
             - LIST_INDEX: for single element access (base[index])
             - LIST_SLICE: for range access (base[start..end])
@@ -3167,13 +3363,13 @@ class CypherExtractor:
 
         if len(node.children) > 4:
             # Slicing
-            slice_start = self._extract_expression(node.child(2))
-            slice_end = self._extract_expression(node.child(4))
+            slice_start_node = node.child(2)
+            slice_end_node = node.child(4)
             children = [base_expr]
-            if slice_start:
-                children.append(slice_start)
-            if slice_end:
-                children.append(slice_end)
+            if slice_start_node.type == "expression":
+                children.append(self._extract_expression(slice_start_node))
+            if slice_end_node.type == "expression":
+                children.append(self._extract_expression(slice_end_node))
             return CypherExpression(
                 node_type=ExpressionNodeType.LIST_SLICE,
                 children=children
@@ -3187,7 +3383,7 @@ class CypherExtractor:
                 children=[base_expr, index_expr]
             )
     
-    def _extract_property_expression(self, node: Node) -> Optional[CypherExpression]:
+    def _extract_property_expression(self, node: Node) -> CypherExpression:
         """Extract property access expressions (e.g., a.name).
         
         Parses property lookups and label checks on expressions. Properties are
@@ -3219,7 +3415,7 @@ class CypherExtractor:
 
         Returns
         -------
-        Optional[CypherExpression]
+        CypherExpression
             The base expression with PROPERTY children chained together, and
             optional LABEL children. For example, "a.name" becomes:
             ```
@@ -3270,7 +3466,10 @@ class CypherExtractor:
         
         return base_expr
     
-    def _extract_atom_expression(self, node: Node) -> Optional[CypherExpression]:
+
+
+
+    def _extract_atom_expression(self, node: Node) -> CypherExpression:
         """Extract atomic expressions (literals, variables, functions, etc.).
         
         Tree-Sitter JavaScript Grammar:
@@ -3334,8 +3533,9 @@ class CypherExtractor:
         elif child_type == "list_comprehension":
             return self._extract_list_comprehension(child)
 
+        # FUTURE: Review this function DIFFICULT
         elif child_type == "pattern_comprehension":
-            return self._extract_pattern_comprehension(child)
+            raise NotImplementedError(f"'{child_type}' extraction not supported yet.")
         
         # Quantifiers
         elif child_type == "quantifier":
@@ -3355,23 +3555,17 @@ class CypherExtractor:
                 expr_node = child.child(1)
                 return self._extract_expression(expr_node)
         
+        elif child_type == "count":
+            return CypherExpression(
+                node_type=ExpressionNodeType.COUNT_ALL
+            )
+
         # Pattern predicates
-        # TODO: Review this function DIFFICULT
-        elif child_type == "pattern_predicate":
-            return CypherExpression(
-                node_type=ExpressionNodeType.PATTERN_PREDICATE,
-                metadata={"pattern": self._get_node_text(child)}
-            )
-        
-        # Existential subqueries
-        # TODO: Review this function DIFFICULT
-        elif child_type == "existential_subquery":
-            return CypherExpression(
-                node_type=ExpressionNodeType.EXISTENTIAL_SUBQUERY,
-                metadata={"query": self._get_node_text(child)}
-            )
+        # FUTURE: Review this function DIFFICULT
+        else: # "pattern_predicate", "existential_subquery"
+            raise NotImplementedError(f"'{child_type}' extraction not supported yet.")
     
-    def _extract_literal(self, node: Node) -> Optional[CypherExpression]:
+    def _extract_literal(self, node: Node) -> CypherExpression:
         """Extract literal values.
         
         Parses all types of literal values including numbers, strings, booleans,
@@ -3405,7 +3599,7 @@ class CypherExtractor:
 
         Returns
         -------
-        Optional[CypherExpression]
+        CypherExpression
             A CypherExpression with type:
             - LITERAL: for simple literals (numbers, strings, booleans, null)
             - LIST_LITERAL: for list literals (extracted via _extract_list_literal)
@@ -3541,6 +3735,11 @@ class CypherExtractor:
         for key, expr in zip(properties_keys, expressions):
             pair_expr = CypherExpression(
                 node_type=ExpressionNodeType.MAP_ENTRY,
+                # TODO: Maybe too aggressive in evaluation?
+                # if the key is different but the expression
+                # in value is the same, the tree edit distance
+                # will capture the deletion and reconstruction of expr
+                # instead of just a key change.
                 value=key,
                 children=[expr]
             )
@@ -3548,7 +3747,7 @@ class CypherExtractor:
         
         return map_literal_expr
     
-    def _extract_function_invocation(self, node: Node) -> Optional[CypherExpression]:
+    def _extract_function_invocation(self, node: Node) -> CypherExpression:
         """Extract function invocation expressions.
         
         Parses function calls with optional DISTINCT modifier and zero or more
@@ -3577,39 +3776,44 @@ class CypherExtractor:
 
         Returns
         -------
-        Optional[CypherExpression]
+        CypherExpression
             A CypherExpression with type FUNCTION, children containing the
-            argument expressions, and metadata:
-            - 'function_name': the name of the function
-            - 'distinct': True if DISTINCT modifier present, False otherwise
+            argument expressions and value set to the function name.
         
         Examples
         --------
         For "count(DISTINCT n.name)":
         - node_type: FUNCTION
-        - metadata: {'function_name': 'count', 'distinct': True}
+        - value: "count"
         - children: [property expression for n.name]
         """
         args = []
-        distinct = False
         
         for child in node.children:
             if child.type == "function_name":
                 func_name = self._get_node_text(child)
             elif child.type == "expression":
                 arg = self._extract_expression(child)
-                if arg:
-                    args.append(arg)
+                args.append(arg)
             elif child.type == "distinct":
-                distinct = True
+                args.append(
+                    CypherExpression(
+                        node_type=ExpressionNodeType.DISTINCT
+                    )
+                )
 
         return CypherExpression(
             node_type=ExpressionNodeType.FUNCTION,
+            # TODO: Maybe too aggressive in evaluation?
+            # if the function name is changed but the arguments
+            # are the same, the tree edit distance will capture
+            # the deletion and reconstruction of args instead of
+            # just a function name change.
+            value=func_name,
             children=args,
-            metadata={"distinct": distinct}
         )
     
-    def _extract_case_expression(self, node: Node) -> Optional[CypherExpression]:
+    def _extract_case_expression(self, node: Node) -> CypherExpression:
         """Extract CASE expressions.
         
         Parses CASE expressions which can have a base expression to evaluate
@@ -3649,7 +3853,7 @@ class CypherExtractor:
 
         Returns
         -------
-        Optional[CypherExpression]
+        CypherExpression
             A CypherExpression with type CASE containing:
             - Optional base expression (for value-based CASE)
             - CASE_ALTERNATIVE children (WHEN/THEN pairs)
@@ -3678,7 +3882,7 @@ class CypherExtractor:
                 else: # child.type == "else":
                     case_expr.children.append(
                         CypherExpression(
-                            node_type=ExpressionNodeType.ELSE_CASE,
+                            node_type=ExpressionNodeType.CASE_ELSE,
                             children=[expr]
                         )
                     )
@@ -3693,9 +3897,9 @@ class CypherExtractor:
                         children=[when_expr, then_expr]
                     )
                 )
+        return case_expr
         
-    
-    def _extract_list_comprehension(self, node: Node) -> Optional[CypherExpression]:
+    def _extract_list_comprehension(self, node: Node) -> CypherExpression:
         """Extract list comprehension expressions.
         
         Parses list comprehensions which filter and optionally transform elements
@@ -3717,7 +3921,7 @@ class CypherExtractor:
 
         Returns
         -------
-        Optional[CypherExpression]
+        CypherExpression
             A CypherExpression with type LIST_COMPREHENSION containing:
             - First child: FILTER_EXPRESSION (variable IN collection with optional WHERE)
             - Second child (optional): transformation expression
@@ -3739,51 +3943,8 @@ class CypherExtractor:
             list_comp_expr.children.append(expr)
         
         return list_comp_expr
-    
-    # TODO: Review this function DIFFICULT
-    def _extract_pattern_comprehension(self, node: Node) -> Optional[CypherExpression]:
-        """Extract pattern comprehension expressions.
         
-        Parses pattern comprehensions which evaluate an expression for each
-        match of a graph pattern. Currently stores the comprehension as text
-        metadata rather than fully parsing the pattern.
-        
-        Tree-Sitter JavaScript Grammar:
-        ```
-        pattern_comprehension: ($) => prec(11, 
-            seq('[', 
-                optional(seq($.variable, '=')), 
-                $.relationships_pattern, 
-                optional(seq(word('where'), $.expression)), 
-                '|', $.expression, ']'
-            )
-        ),
-        ```
-
-        Parameters
-        ----------
-        node : Node
-            The tree-sitter Node representing a pattern_comprehension.
-
-        Returns
-        -------
-        Optional[CypherExpression]
-            A CypherExpression with type PATTERN_COMPREHENSION containing the
-            full comprehension text in metadata.
-        
-        Examples
-        --------
-        For "[(a)-->(b) WHERE b.age > 25 | b.name]":
-        Currently stores the entire text in metadata rather than parsing components.
-        """
-        comp_text = self._get_node_text(node)
-        return CypherExpression(
-            node_type=ExpressionNodeType.PATTERN_COMPREHENSION,
-            value="pattern_comprehension",
-            metadata={"comprehension": comp_text}
-        )
-    
-    def _extract_filter_expression(self, node: Node) -> Optional[CypherExpression]:
+    def _extract_filter_expression(self, node: Node) -> CypherExpression:
         """Extract filter expression for comprehensions and quantifiers.
         
         Parses filter expressions which specify a variable iterating over a
@@ -3802,7 +3963,7 @@ class CypherExtractor:
 
         Returns
         -------
-        Optional[CypherExpression]
+        CypherExpression
             A CypherExpression with type FILTER_EXPRESSION containing:
             - ID_IN_COLL child (variable and collection expression)
             - Optional WHERE child (filter condition)
@@ -3839,7 +4000,7 @@ class CypherExtractor:
         
         return filter_expr
 
-    def _extract_quantifier(self, node: Node) -> Optional[CypherExpression]:
+    def _extract_quantifier(self, node: Node) -> CypherExpression:
         """Extract quantifier expressions (all, any, none, single).
         
         Parses quantifier functions that test whether a predicate holds for
@@ -3884,7 +4045,7 @@ class CypherExtractor:
 
         Returns
         -------
-        Optional[CypherExpression]
+        CypherExpression
             A CypherExpression with type ALL, ANY, NONE, or SINGLE containing
             a FILTER_EXPRESSION child.
         

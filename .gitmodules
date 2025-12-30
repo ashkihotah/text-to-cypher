@@ -1,3 +1,7 @@
 [submodule "tree-sitter-cypher"]
 	path = tree-sitter-cypher
 	url = https://github.com/taekwombo/tree-sitter-cypher
+
+[submodule "cypherbench"]
+	path = cypherbench
+	url = https://github.com/megagonlabs/cypherbench.git

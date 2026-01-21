@@ -2,7 +2,7 @@ import argparse
 
 import pandas as pd
 
-from text2cypher.evaluation.static_analysis import CypherExtractor
+from text2cypher.evaluation.static import CypherExtractor
 
 def init_parser():
     parser = argparse.ArgumentParser(description="Try out the evaluation script on a demo dataset.")

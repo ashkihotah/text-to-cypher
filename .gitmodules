@@ -5,3 +5,7 @@
 [submodule "cypherbench"]
 	path = cypherbench
 	url = https://github.com/megagonlabs/cypherbench.git
+
+[submodule "neo4j-labs-text2cypher"]
+	path = neo4j-labs-text2cypher
+	url = https://github.com/neo4j-labs/text2cypher.git

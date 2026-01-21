@@ -1,0 +1,3 @@
+Ground Truth Cypher: MATCH (m:Movie) RETURN m ORDER BY m.budget DESC LIMIT 1
+Generated Cypher: MATCH (m:Movie) WHERE m.budget IS NOT NULL RETURN m.title AS title, m.budget AS budget ORDER BY m.budget DESC LIMIT 1
+Jaccard Similarity: 0

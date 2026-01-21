@@ -2,7 +2,7 @@
 Test script for WHERE clause extraction and comparison.
 """
 
-from text2cypher.evaluation.static_analysis import (
+from text2cypher.evaluation.static import (
     CypherExtractor,
 )
 

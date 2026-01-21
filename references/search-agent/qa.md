@@ -3,7 +3,7 @@
 
 ## Prompt
 
-So for models like Gemma, Llama and gpt-oss do i have to execute the agent fine Turing tasks you suggested me with papers of category 2 and 3 in order to solve my problem task?
+So for models like Gemma, Llama and gpt-oss do i have to execute the agent fine tuning tasks you suggested me with papers of category 2 and 3 in order to solve my problem task?
 
 ## Answer
 

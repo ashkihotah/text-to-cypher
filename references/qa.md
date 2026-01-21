@@ -116,7 +116,7 @@ Rules:
 *   **Performance:** This pair currently holds the "pound-for-pound" championship belt in the open-source world.
 *   **Thesis Narrative:** You can explain that you selected Llama for its *Agentic Alignment* and Qwen for its *Syntax Proficiency*, demonstrating a deep understanding of model architectures.
 
-# Unifying Text to Graph Query Languages into a General text to GPQ?
+# Unifying Text to Graph Query Languages into a General text to GQL?
 
 ## Prompt
 

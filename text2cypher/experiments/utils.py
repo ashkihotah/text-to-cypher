@@ -1,12 +1,18 @@
 from argparse import ArgumentParser
 import os
+from pathlib import Path
 
 import dotenv
+
 from langchain_core.language_models import BaseChatModel
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_ollama import ChatOllama
 from langchain_openai import AzureChatOpenAI, ChatOpenAI
 from langchain_azure_ai.chat_models import AzureAIChatCompletionsModel
+
+import pandas as pd
+
+import yaml
 
 def add_agent_args(parser: ArgumentParser):
     parser.add_argument("--provider", type=str, choices=["azure", "google", "ollama", "openai"], default="google",
@@ -16,6 +22,31 @@ def add_agent_args(parser: ArgumentParser):
         help="The LLM model to use.",
     )
 
+def read_yaml_config(yaml_path: str) -> dict:
+    if yaml_path is not None and os.path.exists(yaml_path):
+        with open(yaml_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+    else:
+        config = {}
+    return config
+
+def read_df(path: str, **kwargs) -> pd.DataFrame:
+    if path.endswith('.csv'):
+        df = pd.read_csv(path, **kwargs)
+    elif path.endswith('.parquet'):
+        df = pd.read_parquet(path, **kwargs)
+    else:
+        raise ValueError("Unsupported file format. Please provide a .csv or .parquet file.")
+    return df
+
+def save_df(df: pd.DataFrame, save_path: str, **kwargs):
+    os.makedirs(Path(save_path).parent, exist_ok=True)
+    if save_path.endswith('.csv'):
+        df.to_csv(save_path, index=False, **kwargs)
+    elif save_path.endswith('.parquet'):
+        df.to_parquet(save_path, index=False, **kwargs)
+    else:
+        raise ValueError("Unsupported file format. Please provide a .csv or .parquet file.")
 
 def get_llm(
         provider: str = "google", 
@@ -27,17 +58,13 @@ def get_llm(
         api_key = dotenv.get_key(".env", f"{model.upper()}-KEY")
         api_version = dotenv.get_key(".env", f"{model.upper()}-API-VERSION")
 
-        # print(f"Using Azure AI Endpoint: {endpoint}")
-        # print(f"Using Azure AI Credential: {api_key}")
-        # print(f"Using model: {model}")
-        # print(f"Using API Version: {api_version}")
-        # input('>')
-
         os.environ["AZURE_OPENAI_ENDPOINT"] = endpoint
         os.environ["AZURE_OPENAI_API_KEY"] = api_key
 
         # os.environ["AZURE_AI_ENDPOINT"] = endpoint
         # os.environ["AZURE_AI_CREDENTIAL"] = api_key
+
+        model = model.replace("-cloud", "")
 
         if "gpt" in model.lower():
             llm = AzureChatOpenAI(
@@ -63,9 +90,23 @@ def get_llm(
             # }
         )
     elif provider == "ollama":
-        llm = ChatOllama(model=model)
+        llm = ChatOllama(model=model, api_key=dotenv.get_key(".env", "OLLAMA_API_KEY"))
+    elif provider == "lm-studio":
+        llm = ChatOpenAI(
+            model_name=model, 
+            base_url="http://127.0.0.1:1234/v1", 
+            api_key="lm-studio"
+        )
     elif provider == "openai":
-        llm = ChatOpenAI(model_name=model, base_url="http://127.0.0.1:1234/v1", api_key="lm-studio")
+        endpoint = dotenv.get_key(".env", f"{model.upper()}-ENDPOINT")
+        api_key = dotenv.get_key(".env", f"{model.upper()}-KEY")
+        model = model.replace("-cloud", "")
+
+        llm = ChatOpenAI(
+            model_name=model, 
+            base_url=endpoint, 
+            api_key=api_key
+        )
     else:
         raise ValueError(f"Unsupported provider: {provider}")
 

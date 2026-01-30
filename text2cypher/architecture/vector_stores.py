@@ -54,6 +54,9 @@ class Model2VecEmbeddings(Embeddings):
         embedding = self.model.encode([text])
         return embedding[0].tolist()
 
+# taken from neo4j_graphrag.schema module of langchain-neo4j 
+EXCLUDED_LABELS = ["_Bloom_Perspective_", "_Bloom_Scene_", "__KGBuilder__", "__Entity__"]
+EXCLUDED_RELS = ["_Bloom_HAS_SCENE_"]
 
 class FAISSIndex:
 
@@ -130,7 +133,7 @@ class FAISSIndex:
 
     def create_indexes(self) -> None:
         query = "CALL db.labels() YIELD label RETURN label"
-        labels = [record['label'] for record in self.neo4j.query(query)]
+        labels = [record['label'] for record in self.neo4j.query(query) if record['label'] not in EXCLUDED_LABELS]
         self.node_index = FAISS.from_texts(
             texts=labels,
             embedding=self.embedding_model,
@@ -138,7 +141,7 @@ class FAISSIndex:
         )
 
         query = "CALL db.relationshipTypes() YIELD relationshipType RETURN relationshipType"
-        rel_types = [record['relationshipType'] for record in self.neo4j.query(query)]
+        rel_types = [record['relationshipType'] for record in self.neo4j.query(query) if record['relationshipType'] not in EXCLUDED_RELS]
         self.rel_index = FAISS.from_texts(
             texts=rel_types,
             embedding=self.embedding_model,

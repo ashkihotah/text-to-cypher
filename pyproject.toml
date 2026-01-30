@@ -30,6 +30,7 @@ dependencies = [
     "pandas>=2.3.3",
     "torch>=2.9.1",
     "transformers>=4.57.3",
+    "pynput>=1.8.1",
 ]
 
 [dependency-groups]

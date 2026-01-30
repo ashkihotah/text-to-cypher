@@ -1,6 +1,13 @@
 from typing import Any, Dict, Hashable, List, Set, Tuple
 
 from langchain_neo4j import Neo4jGraph
+from neo4j import GraphDatabase, Query
+from neo4j.exceptions import (
+    CypherSyntaxError,
+    DatabaseError,
+    CypherTypeError,
+    ClientError,
+)
 
 def rowsim(setL: Set, setR: Set) -> float:
     """
@@ -22,6 +29,8 @@ def floatify(v: Any) -> Any:
         pass
     if isinstance(v, list):
         return [floatify(x) for x in v]
+    if isinstance(v, tuple):
+        return tuple(floatify(x) for x in v)
     if isinstance(v, dict):
         return {k: floatify(u) for k, u in v.items()}
     return v
@@ -31,7 +40,7 @@ def make_hashable(v: Any) -> Hashable:
     Convert a value to a hashable type (needed for set operations).
     """
     float_v = floatify(v)
-    if not isinstance(float_v, Hashable):
+    if not isinstance(float_v, Hashable) or isinstance(float_v, tuple):
         return str(float_v)
     else:
         return float_v
@@ -106,6 +115,32 @@ def jaccard(query_L: str, query_R: str, neo4j: Neo4jGraph) -> float:
     """
     Compute the Jaccard similarity between the results of two Cypher queries.
     """
-    dict_L = neo4j.query(query_L)
-    dict_R = neo4j.query(query_R)
+    try:
+        dict_L = neo4j.query(query_L)
+        dict_R = neo4j.query(query_R)
+    except Exception as e:
+        print(f'When evaluating jaccard encountered exception: {e}')
+        return 0.0
     return df_sim(dict_L, dict_R, "order by" in f"{query_L} {query_R}".lower())
+
+
+def check_validity(query: str, neo4j_driver: GraphDatabase, database: str, timeout: int = 120) -> Tuple[bool, Any]:
+    is_executable = True
+    is_result_empty = None
+    try:
+        with neo4j_driver.session(database=database) as session:
+            query = Query(query, timeout=timeout)
+            result = session.run(query)
+            records = list(result)
+            if len(records) == 0:
+                is_result_empty = True
+            else:
+                is_result_empty = False
+    except (
+        CypherSyntaxError,
+        DatabaseError,
+        CypherTypeError,
+        ClientError,
+    ) as _:
+        is_executable = False
+    return is_executable, is_result_empty

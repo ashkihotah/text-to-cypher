@@ -2,6 +2,7 @@ import json
 from typing import List, Literal, Optional, Union
 from langchain_neo4j import Neo4jGraph
 from langchain_core.tools import tool
+import tiktoken
 
 from text2cypher.architecture.indexes import SchemaIndex
 from text2cypher.architecture.vector_stores import FAISSIndex
@@ -29,16 +30,24 @@ class RetrievalToolKit:
         "schema_vector_store",
     )
 
-    def __init__(self, neo4j: Neo4jGraph, schema_index: SchemaIndex, schema_vector_store: FAISSIndex):
+    def __init__(
+        self,
+        neo4j: Neo4jGraph,
+        schema_index: SchemaIndex, 
+        schema_vector_store: FAISSIndex, 
+        token_limit: int = 4000
+    ):
         self.init_runtime(
             neo4j=neo4j,
             schema_index=schema_index,
             schema_vector_store=schema_vector_store,
         )
+        self.tokenizer = tiktoken.get_encoding("cl100k_base")
+        self.token_limit = token_limit
 
         @tool
         # @append_md_to_docstring('rsc/prompts/schema_retrieval/execute_cypher_query_examples.md')
-        def execute_cypher_query(cypher: str, first_k: int = 10) -> List[dict]:
+        def execute_cypher_query(cypher: str) -> List[dict]:
             """Execute arbitrary Cypher queries against the Neo4j database.
 
             This tool allows you to run custom Cypher queries to explore the database,
@@ -50,8 +59,6 @@ class RetrievalToolKit:
             cypher : str
                 The Cypher query to execute. Should be a valid Cypher query string
                 (e.g., 'MATCH (n:Person) RETURN n.name LIMIT 5').
-            first_k : int
-                The maximum number of result rows to return (default is 10).
 
             Returns
             -------
@@ -59,20 +66,21 @@ class RetrievalToolKit:
                 The query results as a list of dictionaries, where each dictionary
                 represents a row of results with keys corresponding to the RETURN clause.
                 Returns an empty list if the query produces no results or if the query fails.
-            """
-            records = self.neo4j.query(cypher)
+            """ 
             message = ""
-            if len(records) > first_k:
-                records = records[:first_k]
-                message += (
-                    f"Note: The query returned more than {first_k} records, "
-                    f"so only the first {first_k} records are shown.\n"
-                    "Change the `first_k` parameter to retrieve more results.\n"
-                )
+
+            records = self.neo4j.query(cypher)
             if len(records) > 0:
                 message += f"Results:\n{records}"
             else:
                 message += "The query returned no results!"
+
+            # Truncate strictly based on token count
+            tokens = self.tokenizer.encode(message)
+            if len(tokens) > self.token_limit:
+                truncated_tokens = tokens[:self.token_limit]
+                message = self.tokenizer.decode(truncated_tokens)
+                message += f"\n\n... (Output truncated because it exceeded {self.token_limit} tokens)"
             
             return message
         

@@ -9,7 +9,7 @@ from typing import Any, List, Optional, override
 from pathlib import Path
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage, RemoveMessage
 from langchain_neo4j import Neo4jGraph
 from langgraph.graph import StateGraph
 from langchain_core.tools import tool
@@ -88,6 +88,10 @@ class RetrievalAgent:
                 """
                 if kg_schema:
                     kg_schema = KGSchema.model_validate(kg_schema) 
+
+                if cypher_query:
+                    self.neo4j.query(cypher_query)
+
                 return RetrievalAgent.Result(
                     cypher_query=cypher_query,
                     motivation=motivation,
@@ -177,6 +181,14 @@ class RetrievalAgent:
             state_updates = {"messages": []}
 
             if not last_message.tool_calls:
+                # check if the last message is completely empty
+                # if this is true remove it to avoid issues
+                if not last_message.content.strip():
+                    state_updates["messages"].append(
+                        RemoveMessage(id=last_message.id)
+                    )
+                    return state_updates
+
                 state_updates["messages"].append(
                     SystemMessage(
                         content=(
@@ -185,6 +197,7 @@ class RetrievalAgent:
                         )
                     )
                 )
+                # return state_updates
             
             for tool_call in last_message.tool_calls:
                 tool_name = tool_call['name']
@@ -362,7 +375,7 @@ class RetrievalAgent:
                 verbose=verbose,
                 log_file_path=log_file_path
             )
-            input("next> ")
+            # input("next> ")
     
         # Get the actual final state from the workflow
         final_state = self.workflow.get_state(

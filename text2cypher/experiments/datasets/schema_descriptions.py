@@ -15,7 +15,7 @@ import yaml
 
 import dotenv
 
-from text2cypher.utils import add_agent_args, get_llm
+from text2cypher.experiments.utils import add_agent_args, get_llm
 
 def init_parser():
     parser = argparse.ArgumentParser(description="Generate synthetic schema descriptions.")

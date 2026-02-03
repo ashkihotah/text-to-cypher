@@ -3,9 +3,10 @@ import traceback
 
 import pandas as pd
 from tqdm import tqdm
-from pynput import keyboard
+# from pynput import keyboard
+import signal  # Import signal module
 
-from text2cypher.experiments.utils import save_df
+from experiments.utils import save_df
 
 class DfToDfGenerator:
 
@@ -47,28 +48,34 @@ class DfToDfGenerator:
         bar.update(len(self.processed_records))
 
         interrupted = False
-        def on_press(key):
+        # def on_press(key):
+        #     nonlocal interrupted
+        #     try:
+        #         if key.char == 'ì':
+        #             interrupted = True
+        #             print("\nGeneration interrupted by the user!")
+        #             print(
+        #                 "I'm now safely interrupting the process",
+        #                 f"and saving generated data to {save_path}..."
+        #             )
+        #             return False  # Stop listener
+        #     except AttributeError:
+        #         pass  # Ignore special keys
+        # listener = keyboard.Listener(on_press=on_press)
+        # listener.start()
+        original_sigint_handler = signal.getsignal(signal.SIGINT)
+        def signal_handler(signum, frame):
             nonlocal interrupted
-            try:
-                if key.char == 'q':  # Listen for 'q' key
-                    interrupted = True
-                    print("\nGeneration interrupted by pressing 'q'!")
-                    print(
-                        "I'm now safely interrupting the process",
-                        f"and saving generated data to {save_path}..."
-                    )
-                    return False  # Stop listener
-            except AttributeError:
-                pass  # Ignore special keys
-        listener = keyboard.Listener(on_press=on_press)
-        listener.start()
-
+            interrupted = True
+            print("\nSafe exit requested. Finishing current record before saving...")
+        signal.signal(signal.SIGINT, signal_handler)
+        
         try:
-            for record in self.unprocessed_records: 
-                if interrupted:
-                    break
+            while not interrupted and bar.n < total:
                 self.processed_records.append(
-                    self.generate_output_record(record)
+                    self.generate_output_record(
+                        self.unprocessed_records[bar.n - len(self.processed_records)]
+                    )
                 )
                 bar.update(1)
                 # input("finished_sample> ")
@@ -76,5 +83,6 @@ class DfToDfGenerator:
             traceback.print_exc()
         finally:
             df = pd.DataFrame(self.processed_records)
+            print("Saving generated data to", save_path)
             save_df(df, save_path, **kwargs)
             bar.close()

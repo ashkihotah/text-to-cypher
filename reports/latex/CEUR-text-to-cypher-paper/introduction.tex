@@ -1,0 +1,40 @@
+\section{Introduction}
+\label{sec:introduction}
+
+For decades, the problem of bridging the gap between natural language and formal languages had always been a significant challenge, both for humans and software agents, in the field of computer science.
+
+One instance of this challenge is the task of converting user's questions into database queries, with the main goal of retrieving relevant information from \textit{structured} data sources starting from \textit{unstructured} user queries expressed in natural language. This class of tasks, commonly referred to as Text-to-Query, is fundamentally a challenge of semantic translation and alignment between two distinct representational paradigms: the often ambiguous nature of human language and the rigid, formal structure of query languages.
+
+The proliferation of large-scale Knowledge Graphs (KGs) has revolutionized how structured information is stored and integrated across domains ranging from biomedicine to financial intelligence. Among these, Property Graph Databases, most notably Neo4j ones with their declarative query language Cypher, have emerged as the industry standard for representing and querying complex, interconnected data.
+
+Text-to-Cypher, a specialized subset of the broader Text-to-Query task, focuses on translating natural language questions into Cypher queries that can be executed against Property Graph Databases. This task is particularly challenging due to the inherent complexity of graph structures to express and the way in which Cypher allow us to represent such complex graph patterns (that requires some vision capabilities and intelligence to better interpret and understand ASCII art styled cypher queries). 
+
+To solve this class of tasks, an intelligent agent must be able to perform, at least, the following sub-tasks:
+\begin{enumerate}
+    % Identification = Modeling, it is a pure filosophical distinction. Either you assume that:
+    % Identification = the world has an internal structure / rule set, existing independently of your operate, that you need to identify according to your observations, intents and purposes.
+    % Modeling = or you assume that the world doesn't have any kind of structure / rule set, and you create a formal one to represent it, according to your observations, intents and purposes.
+    \item \label{itm:identify} \textbf{Relevant Concepts Identification}: extracting key \textit{entities}, \textit{relationships} between them and their \textit{properties} of our interest expressed in natural language. This process is the most problematic one since it is often carried out by abstract innate human cognitive processes, guided by specific intents, which are difficult to formalize computationally and requires advanced natural language understanding with a deep world knowledge.
+
+    \item \label{itm:discovery} \textbf{Relevant Formalisms Discovery}: discoverying the appropriate formal constructs, of the underlying used formalism framework, that had or could be used to represent identified concepts. This step involves understanding the syntax and semantics of this symbolical framework by performing multiple reasoning and action steps. In our case, the underlying framework is represented by the Property Graph Data Model and the Cypher formal query language. In our case, the discovery process involves exploring the target graph database schema to find relevant \textit{node labels}, \textit{relationship types} and their \textit{properties} that had or can be used to represent identified concepts.
+
+    \item \label{itm:linking} \textbf{Concepts-Formalisms Linking}: establishing correspondences between identified concepts and discovered formal constructs. In our case, some instances of this sub-task can be referred to as \textbf{Entity Linking}, \textbf{Relationship Linking} and \textbf{Property Linking}.
+    
+    \item \label{itm:representing} \textbf{Formalisms Framework Exploitation}: leveraging the established correspondences to construct syntactically and semantically correct queries in the target formalism. In our case, this involves generating Cypher queries that accurately represent the user's natural language questions based on the linked concepts and formal constructs.
+\end{enumerate}
+
+All these sub-tasks are inherently probabilistic or possibilistic in nature and require a deep understanding of natural language, general world knowledge and the target formalism, as well as the ability to reason about the relationships between concepts and their representations.
+
+With the advent of Large Language Models (LLMs) and their agentic capabilities, new avenues had opened for addressing the inherent challenges in this task. Their proficiency in understanding natural language, reasoning over complex information and generating coherent text to perform specific actions, makes them well-suited for performing the sub-tasks outlined above.
+
+In this paper, we propose an agentic solution to Text-to-Cypher tasks, without any kind of fine-tuning, that leverages LLMs to first find all relevant schema components in the target graph database, necessary for query construction, and then generate the final Cypher query to be executed.
+
+\paragraph{Contributions} Our core contributions are summarized as follows:
+\begin{itemize}
+  \item We designed a zero-shot approach to tackle Text-to-Cypher tasks by providing to a \textit{retriever} LLM agent the necessary tools and connections to explore the target graph database and gather only a pruned, strictly query-specific subgraph of the schema for query construction.
+  \item 
+  % \item We designed a second \textit{generator} LLM agent that, by leveraging the information collected by the \textit{retriever} agent, is able to generate the final Cypher query to be executed against the target graph database.
+  \item We evaluated our approach on well-known benchmarks for Text-to-Cypher tasks, showing its effectiveness and potential, even across completely different knowledge graphs, for future research in this area.
+\end{itemize}
+
+

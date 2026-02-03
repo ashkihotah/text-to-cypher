@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import asdict, dataclass
 from typing import Any, Callable, List, Literal, Optional, Tuple, Union
+
 from langchain_neo4j import Neo4jGraph
 from langchain_core.embeddings import Embeddings
-from collections import defaultdict
 
 import numpy as np
 

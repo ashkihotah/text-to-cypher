@@ -6,12 +6,13 @@ from langchain_neo4j import Neo4jGraph
 import pandas as pd
 import dotenv
 
-from text2cypher.experiments.datasets.patterns import (
-    DfToDfGenerator,
-)
 from text2cypher.evaluation.psj_similarity import provenance_subgraph_jaccard_similarity
 from text2cypher.evaluation.runtime import check_validity, jaccard
-from text2cypher.experiments.utils import read_df, read_yaml_config
+
+from experiments.utils import read_df, read_yaml_config
+from experiments.patterns import (
+    DfToDfGenerator,
+)
 
 class Evaluator(DfToDfGenerator):
 

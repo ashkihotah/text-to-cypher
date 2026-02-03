@@ -15,7 +15,7 @@ from transformers.trainer_callback import TrainerCallback
 
 import yaml
 
-from text2cypher.experiments.config import HF_ENC_DEC_MODELS
+from experiments.config import HF_ENC_DEC_MODELS
 
 # class MetricsCallback(TrainerCallback):
 #     """Callback to log custom metrics during training."""

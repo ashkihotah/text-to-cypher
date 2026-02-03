@@ -17,8 +17,8 @@ from text2cypher.architecture.vector_stores import FAISSIndex, Model2VecEmbeddin
 from text2cypher.architecture.agents import RetrievalAgent
 from text2cypher.architecture.indexes import SchemaIndex
 
-from text2cypher.experiments.utils import add_agent_args, get_llm, read_df, read_yaml_config
-from text2cypher.experiments.datasets.patterns import (
+from experiments.utils import add_agent_args, get_llm, read_df, read_yaml_config
+from experiments.patterns import (
     DfToDfGenerator,
 )
 
@@ -151,10 +151,9 @@ class TrajectoryGenerator(DfToDfGenerator):
                 verbose=True,
                 log_file_path=log_file_path,
             )
-
         except GraphRecursionError as e:
             print("Skipping further generation due to recursion error.")
-            print(f"\nGraphRecursionError: {e}")
+            print(f"GraphRecursionError: {e}")
         
         final_state = self.agent.workflow.get_state(
             config={"configurable": {"thread_id": record_id}}

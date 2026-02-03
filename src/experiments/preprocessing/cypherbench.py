@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import pandas as pd
 
-from text2cypher.experiments.config import (
+from experiments.config import (
     CYPHERBENCH_SCHEMAS_PATH, 
     SAMPLE_FORMAT_FUNCTIONS, 
     SCHEMA_FORMAT_FUNCTIONS

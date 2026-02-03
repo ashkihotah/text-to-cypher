@@ -1,30 +1,30 @@
 import os
-from langchain_core.embeddings import Embeddings
+from typing import List
+
 from langchain_neo4j import Neo4jGraph
+from langchain_core.embeddings import Embeddings
 from langchain_community.vectorstores import FAISS
 from langchain_community.vectorstores.utils import DistanceStrategy
 
 # from gensim.models.fasttext import load_facebook_model
-import compress_fasttext
+# import compress_fasttext
 from model2vec import StaticModel
-from langchain_core.embeddings import Embeddings
 
-from typing import List
 
-class FastTextEmbeddings(Embeddings):
+# class FastTextEmbeddings(Embeddings):
     
-    def __init__(self, model_path: str):
-        # self.model = model = load_facebook_model("./models/fasttext/cc.en.300.compressed.bin")
-        self.model = compress_fasttext.models.CompressedFastTextKeyedVectors.load(
-            model_path
-        )
+#     def __init__(self, model_path: str):
+#         # self.model = model = load_facebook_model("./models/fasttext/cc.en.300.compressed.bin")
+#         self.model = compress_fasttext.models.CompressedFastTextKeyedVectors.load(
+#             model_path
+#         )
     
-    def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        return [self.model.get_vector(text) for text in texts]
+#     def embed_documents(self, texts: List[str]) -> List[List[float]]:
+#         return [self.model.get_vector(text) for text in texts]
     
-    def embed_query(self, text: str) -> List[float]:
-        text = text.replace("_", " ").lower()
-        return self.model.get_vector(text)
+#     def embed_query(self, text: str) -> List[float]:
+#         text = text.replace("_", " ").lower()
+#         return self.model.get_vector(text)
 
 class Model2VecEmbeddings(Embeddings):
     """
@@ -157,15 +157,3 @@ class FAISSIndex:
         )
 
         self.save_indexes()
-
-if __name__ == "__main__":
-    # model = FastTextEmbeddings("./models/fasttext/cc.en.300.compressed.bin")
-    # # Get first 3 keys
-    # # first_3_keys = list(model.model.key_to_index.keys())
-    # # print(first_3_keys)
-    # # get embedding for "peptide"
-    # print(model.model.get_vector("hasceo"))
-
-    model = Model2VecEmbeddings("minishlab/M2V_base_output")
-    embedding = model.embed_query("peptide")
-    print(embedding)

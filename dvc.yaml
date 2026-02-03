@@ -1,40 +1,49 @@
 stages:
-  preprocess_cypherbench_train_set:
+
+  train-generate-with-gpt-4.1:
     cmd: >-
-      python text2cypher/preprocessing/cypherbench.py
-      --input-path data/raw/text-to-cypher/CypherBench/train.json
-      --schema-format-fn special_tokens
-      --sample-format-fn special_tokens
-      --output-path data/processed/text-to-cypher/CypherBench/train.csv
+      python -m experiments.generate
+      --input-df ./data/raw/neo4j-2024v1/train-00000-of-00001.parquet
+      --output-df ./data/interim/neo4j-2024v1/gpt-4.1/train-trajectories.csv
+      --workflow native_tool_call
+      --provider azure
+      --model gpt-4.1
+      --verbose True
+      --log-dir-path ./logs/
     deps:
-      - data/raw/text-to-cypher/CypherBench/train.json
-      - text2cypher/preprocessing/cypherbench.py
+      - data/raw/neo4j-2024v1/train-00000-of-00001.parquet
+      - src/experiments/generate.py
     outs:
-      - data/processed/text-to-cypher/CypherBench/train.csv
-    
-  preprocess_cypherbench_test_set:
+      - data/interim/neo4j-2024v1/gpt-4.1/train-trajectories.csv:
+          persist: true
+
+  test-generate-with-gpt-4.1:
     cmd: >-
-      python text2cypher/preprocessing/cypherbench.py
-      --input-path data/raw/text-to-cypher/CypherBench/test.json
-      --schema-format-fn special_tokens
-      --sample-format-fn special_tokens
-      --output-path data/processed/text-to-cypher/CypherBench/test.csv
+      python -m experiments.generate
+      --input-df ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      --output-df ./data/interim/neo4j-2024v1/gpt-4.1/test-trajectories.csv
+      --workflow native_tool_call
+      --provider azure
+      --model gpt-4.1
+      --verbose True
+      --log-dir-path ./logs/
     deps:
-      - data/raw/text-to-cypher/CypherBench/test.json
-      - text2cypher/preprocessing/cypherbench.py
+      - data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      - src/experiments/generate.py
     outs:
-      - data/processed/text-to-cypher/CypherBench/test.csv
+      - data/interim/neo4j-2024v1/gpt-4.1/test-trajectories.csv:
+          persist: true
   
-  train_t5_small_cypherbench:
+  evaluate-train-gpt-4.1-generation:
     cmd: >-
-      python text2cypher/modeling/train.py
-      --model-name google/flan-t5-small
-      --train-data data/processed/text-to-cypher/CypherBench/train.csv
-      --hyperparameters parameters/any.yaml
-      --output-dir models/t5-small-cypherbench
+      python -m experiments.evaluate
+      --dataset-df ./data/raw/neo4j-2024v1/train-00000-of-00001.parquet
+      --predictions-df ./data/interim/neo4j-2024v1/gpt-4.1/train-trajectories.csv
+      --output-df ./data/interim/evaluations/gpt-4.1/train.csv
     deps:
-      - text2cypher/modeling/train.py
-      - data/processed/text-to-cypher/CypherBench/train.csv
-      - parameters/any.yaml
+      - data/raw/neo4j-2024v1/train-00000-of-00001.parquet
+      - data/interim/neo4j-2024v1/gpt-4.1/train-trajectories.csv
+      - src/experiments/evaluate.py
     outs:
-      - models/t5-small-cypherbench
+      - data/interim/evaluations/gpt-4.1/train.csv:
+          persist: true

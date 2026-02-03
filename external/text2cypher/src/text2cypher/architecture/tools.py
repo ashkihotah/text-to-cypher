@@ -1,14 +1,14 @@
 import json
+from pathlib import Path
+from functools import wraps
 from typing import List, Literal, Optional, Union
+
 from langchain_neo4j import Neo4jGraph
 from langchain_core.tools import tool
 import tiktoken
 
 from text2cypher.architecture.indexes import SchemaIndex
 from text2cypher.architecture.vector_stores import FAISSIndex
-
-from functools import wraps
-from pathlib import Path
 
 def append_md_to_docstring(md_file: str):
     """Decorator to load docstring from markdown file."""
@@ -482,25 +482,3 @@ class RetrievalToolKit:
                 lines.append("")  # blank line between tools
 
             return "\n".join(lines)
-
-if __name__ == "__main__":
-    import dotenv
-    import os
-    import time
-    from langchain_ollama import OllamaEmbeddings
-    dotenv.load_dotenv()
-    neo4j = Neo4jGraph(
-        url=os.getenv("NEO4J_URI"),
-        username="companies",
-        password="companies",
-        database="companies"
-    )
-    embedding_model = OllamaEmbeddings(
-        model="snowflake-arctic-embed:22m",
-    )
-    schema_index = SchemaIndex(neo4j=neo4j, embedding_model=embedding_model)
-    
-    schema_vector_store = FAISSIndex(neo4j=neo4j, embedding_model=embedding_model, indexes_dir="indexes")
-    toolkit = RetrievalToolKit(neo4j=neo4j, schema_index=schema_index, schema_vector_store=schema_vector_store)
-
-    print(toolkit.get_tools_description(format="json"))

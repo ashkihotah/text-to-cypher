@@ -1,0 +1,219 @@
+% TEXT-TO-CYPHER BIBLIOGRAPHY
+
+@Article{cypherbench-megagonlabs-2024,
+    title={CypherBench: Towards Precise Retrieval over Full-scale Modern Knowledge Graphs in the LLM Era},
+    author={Feng, Yanlin and Papicchio, Simone and Rahman, Sajjadur},
+    journal={arXiv preprint arXiv:2412.18702},
+    year={2024}
+}
+
+@misc{neo4jlabs-text2cypher-2024,
+    title={Text2Cypher: Bridging Natural Language and Graph Databases}, 
+    author={Makbule Gulcin Ozsoy and Leila Messallem and Jon Besga and Gianandrea Minneci},
+    year={2024},
+    eprint={2412.10064},
+    archivePrefix={arXiv},
+    primaryClass={cs.LG},
+    url={https://arxiv.org/abs/2412.10064}, 
+}
+
+@article{yang-etal-2026-enhancing,
+  title = {Enhancing knowledge graph interactions: A comprehensive Text-to-Cypher pipeline with large language models},
+  journal = {Information Processing \& Management},
+  volume = {63},
+  number = {1},
+  pages = {104280},
+  year = {2026},
+  issn = {0306-4573},
+  doi = {https://doi.org/10.1016/j.ipm.2025.104280},
+  url = {https://www.sciencedirect.com/science/article/pii/S0306457325002213},
+  author = {Chao Yang and Changyi Li and Xiaodu Hu and Hao Yu and Jinzhi Lu},
+  keywords = {Knowledge graph, Large language model, Preference learning, Synthetic data generation, Text-to-Cypher},
+  abstract = {Knowledge Graphs (KGs) store structured information but typically require specialized query languages, such as Cypher for Neo4j, creating accessibility challenges for users unfamiliar with graph syntax. Large Language Models (LLMs) offer a solution by translating natural language into Cypher queries. However, existing models—including large-scale LLMs (e.g., ChatGPT) and smaller open-source models (e.g., Llama-7B, 8B) often struggle with accurately generating domain-specific queries due to inadequate alignment with KG schemas and limited domain-specific training data. To address these limitations, we propose a training pipeline tailored specifically for domain-aligned Cypher query generation, emphasizing usability for smaller-scale models. Our method integrates template-based synthetic data generation for diverse, high-quality training samples. We combine supervised fine-tuning with preference learning to enhance domain knowledge and Cypher syntax understanding. Additionally, our approach includes a context-aware retrieval mechanism that dynamically incorporates relevant schema elements at inference, improving alignment with domain-specific knowledge. We evaluated our method on the Hetionet biomedical KG using a benchmark dataset of 240 queries across three complexity levels. Our results show that our context-aware prompting achieves a substantial improvement, increasing component matching accuracy by 23.6% for ChatGPT-4o over the vanilla prompt baseline. When applying our full training pipeline to smaller-scale models, CodeLlama-13B* achieves an execution accuracy of 69.2%, nearly matching ChatGPT-4o’s 72.1%. Importantly, our approach significantly narrows the performance gap, enabling smaller models to effectively manage complex, domain-specific tasks previously dominated by larger models. These findings demonstrate that our method is scalable, computationally efficient, and robust for practical Cypher query generation applications.}
+}
+
+% TEXT-TO-SPARQL BIBLIOGRAPHY
+
+@inproceedings{grasp-walter-bast-2025,
+  author       = {Sebastian Walter and
+                  Hannah Bast},
+  title        = {{GRASP:} Generic Reasoning And {SPARQL} Generation Across Knowledge
+                  Graphs},
+  booktitle    = {{ISWC} {(1)}},
+  series       = {Lecture Notes in Computer Science},
+  volume       = {16140},
+  pages        = {271--289},
+  publisher    = {Springer},
+  year         = {2025}
+}
+
+@misc{faiss-douze-etal-2025,
+  title={The Faiss library}, 
+  author={Matthijs Douze and Alexandr Guzhva and Chengqi Deng and Jeff Johnson and Gergely Szilvasy and Pierre-Emmanuel Mazaré and Maria Lomeli and Lucas Hosseini and Hervé Jégou},
+  year={2025},
+  eprint={2401.08281},
+  archivePrefix={arXiv},
+  primaryClass={cs.LG},
+  url={https://arxiv.org/abs/2401.08281}, 
+}
+
+@inproceedings{grasp-entity-linking-2025,
+  author       = {Sebastian Walter and
+                  Hannah Bast},
+  title        = {Knowledge Graph Entity Linking via Interactive Reasoning and
+Exploration with {GRASP}},
+  booktitle    = {{OM} 2025 (Ontology Matching Workshop)},
+  note         = {To appear},
+  series       = {{CEUR} Workshop Proceedings},
+  publisher    = {CEUR-WS.org},
+  year         = {2025}
+}
+
+@inproceedings{longwell-etal-2024-triple-augmented,
+    author = {Longwell, Jack and Ali Akbar Alavi, Mahdiyar and Zarrinkalam, Fattane and Ensan, Faezeh},
+    title = {Triple Augmented Generative Language Models for SPARQL Query Generation from Natural Language Questions},
+    year = {2024},
+    isbn = {9798400707247},
+    publisher = {Association for Computing Machinery},
+    address = {New York, NY, USA},
+    url = {https://doi.org/10.1145/3673791.3698426},
+    doi = {10.1145/3673791.3698426},
+    abstract = {Knowledge Graph Question Answering (KGQA) leverages structured Knowledge Graphs (KG) to respond to Natural Language Questions (NLQ). This paper explores integrating Generative Language Models (GLMs) augmented with knowledge graph triple retrievers into the KGQA framework to generate accurate SPARQL queries from NLQs. Specifically, we evaluate the effectiveness of integrating triple retriever models with the SPARQL-generating capabilities of GLMs by investigating: (1) the standalone capabilities of GLMs independent of retriever performance, (2) the impact of incorporating a base retriever (BM25), and (3) a comparative analysis with state-of-the-art KGQA methods. Our experiments demonstrate that by incorporating a triple retrieval module, GLMs can generate accurate SPARQL queries and outperform current end-to-end KGQA methods, particularly when paired with an optimal retriever.},
+    booktitle = {Proceedings of the 2024 Annual International ACM SIGIR Conference on Research and Development in Information Retrieval in the Asia Pacific Region},
+    pages = {269–273},
+    numpages = {5},
+    keywords = {generative language models, knowledge graph question answering, sparql},
+    location = {Tokyo, Japan},
+    series = {SIGIR-AP 2024}
+}
+
+@inproceedings{dabramo-etal-2025-investigating,
+    title = "Investigating Large Language Models for Text-to-{SPARQL} Generation",
+    author = "D{'}Abramo, Jacopo  and
+      Zugarini, Andrea  and
+      Torroni, Paolo",
+    editor = "Shi, Weijia  and
+      Yu, Wenhao  and
+      Asai, Akari  and
+      Jiang, Meng  and
+      Durrett, Greg  and
+      Hajishirzi, Hannaneh  and
+      Zettlemoyer, Luke",
+    booktitle = "Proceedings of the 4th International Workshop on Knowledge-Augmented Methods for Natural Language Processing",
+    month = may,
+    year = "2025",
+    address = "Albuquerque, New Mexico, USA",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2025.knowledgenlp-1.5/",
+    doi = "10.18653/v1/2025.knowledgenlp-1.5",
+    pages = "66--80",
+    ISBN = "979-8-89176-229-9",
+    abstract = "Large Language Models (LLMs) have demonstrated strong capabilities in code generation, such as translating natural language questions into SQL queries. However, state-of-the-art solutions often involve a costly fine-tuning step. In this study, we extensively evaluate In-Context Learning (ICL) solutions for text-to-SPARQL generation with different architectures and configurations, based on methods for retrieving relevant demonstrations for few-shot prompting and working with multiple generated hypotheses. In this way, we demonstrate that LLMs can formulate SPARQL queries achieving state-of-the-art results on several Knowledge Graph Question Answering (KGQA) benchmark datasets without fine-tuning."
+}
+
+% AGENTIC APPROACH BIBLIOGRAPHY
+
+@misc{yao-etal-2023-react,
+  title={ReAct: Synergizing Reasoning and Acting in Language Models}, 
+  author={Shunyu Yao and Jeffrey Zhao and Dian Yu and Nan Du and Izhak Shafran and Karthik Narasimhan and Yuan Cao},
+  year={2023},
+  eprint={2210.03629},
+  archivePrefix={arXiv},
+  primaryClass={cs.CL},
+  url={https://arxiv.org/abs/2210.03629}, 
+}
+
+@misc{schick-etal-2023-toolformer,
+  title={Toolformer: Language Models Can Teach Themselves to Use Tools}, 
+  author={Timo Schick and Jane Dwivedi-Yu and Roberto Dessì and Roberta Raileanu and Maria Lomeli and Luke Zettlemoyer and Nicola Cancedda and Thomas Scialom},
+  year={2023},
+  eprint={2302.04761},
+  archivePrefix={arXiv},
+  primaryClass={cs.CL},
+  url={https://arxiv.org/abs/2302.04761}, 
+}
+
+@misc{patil-etal-2023-gorilla,
+  title={Gorilla: Large Language Model Connected with Massive APIs}, 
+  author={Shishir G. Patil and Tianjun Zhang and Xin Wang and Joseph E. Gonzalez},
+  year={2023},
+  eprint={2305.15334},
+  archivePrefix={arXiv},
+  primaryClass={cs.CL},
+  url={https://arxiv.org/abs/2305.15334}, 
+}
+
+% STATIC WORD EMBEDDINGS BIBLIOGRAPHY
+
+@misc{bojanowski-etal-2017-enriching,
+  title={Enriching Word Vectors with Subword Information}, 
+  author={Piotr Bojanowski and Edouard Grave and Armand Joulin and Tomas Mikolov},
+  year={2017},
+  eprint={1607.04606},
+  archivePrefix={arXiv},
+  primaryClass={cs.CL},
+  url={https://arxiv.org/abs/1607.04606}, 
+}
+
+@software{tulkens-2024-model2vec,
+  author       = {Stephan Tulkens and {van Dongen}, Thomas},
+  title        = {Model2Vec: Fast State-of-the-Art Static Embeddings},
+  year         = {2024},
+  publisher    = {Zenodo},
+  doi          = {10.5281/zenodo.17270888},
+  url          = {https://github.com/MinishLab/model2vec},
+  license      = {MIT}
+}
+
+% NUMERICAL METHODS BIBLIOGRAPHY
+
+@misc{shlens-2014-tutorial-pca,
+  title={A Tutorial on Principal Component Analysis}, 
+  author={Jonathon Shlens},
+  year={2014},
+  eprint={1404.1100},
+  archivePrefix={arXiv},
+  primaryClass={cs.LG},
+  url={https://arxiv.org/abs/1404.1100}, 
+}
+
+% TRANSFORMERS BIBLIOGRAPHY
+
+@misc{reimers-2019-sentence-bert,
+  title={Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks}, 
+  author={Nils Reimers and Iryna Gurevych},
+  year={2019},
+  eprint={1908.10084},
+  archivePrefix={arXiv},
+  primaryClass={cs.CL},
+  url={https://arxiv.org/abs/1908.10084}, 
+}
+
+@misc{xiao-etal-2023-cpack,
+  title={C-Pack: Packaged Resources To Advance General Chinese Embedding}, 
+  author={Shitao Xiao and Zheng Liu and Peitian Zhang and Niklas Muennighoff},
+  year={2023},
+  eprint={2309.07597},
+  archivePrefix={arXiv},
+  primaryClass={cs.CL}
+}
+
+@misc{openai-2023-gpt4technicalreport,
+  title={GPT-4 Technical Report}, 
+  author={OpenAI and Josh Achiam and Steven Adler and Sandhini Agarwal and Lama Ahmad and Ilge Akkaya and Florencia Leoni Aleman and Diogo Almeida and Janko Altenschmidt and Sam Altman and Shyamal Anadkat and Red Avila and Igor Babuschkin and Suchir Balaji and Valerie Balcom and Paul Baltescu and Haiming Bao and Mohammad Bavarian and Jeff Belgum and Irwan Bello and Jake Berdine and Gabriel Bernadett-Shapiro and Christopher Berner and Lenny Bogdonoff and Oleg Boiko and Madelaine Boyd and Anna-Luisa Brakman and Greg Brockman and Tim Brooks and Miles Brundage and Kevin Button and Trevor Cai and Rosie Campbell and Andrew Cann and Brittany Carey and Chelsea Carlson and Rory Carmichael and Brooke Chan and Che Chang and Fotis Chantzis and Derek Chen and Sully Chen and Ruby Chen and Jason Chen and Mark Chen and Ben Chess and Chester Cho and Casey Chu and Hyung Won Chung and Dave Cummings and Jeremiah Currier and Yunxing Dai and Cory Decareaux and Thomas Degry and Noah Deutsch and Damien Deville and Arka Dhar and David Dohan and Steve Dowling and Sheila Dunning and Adrien Ecoffet and Atty Eleti and Tyna Eloundou and David Farhi and Liam Fedus and Niko Felix and Simón Posada Fishman and Juston Forte and Isabella Fulford and Leo Gao and Elie Georges and Christian Gibson and Vik Goel and Tarun Gogineni and Gabriel Goh and Rapha Gontijo-Lopes and Jonathan Gordon and Morgan Grafstein and Scott Gray and Ryan Greene and Joshua Gross and Shixiang Shane Gu and Yufei Guo and Chris Hallacy and Jesse Han and Jeff Harris and Yuchen He and Mike Heaton and Johannes Heidecke and Chris Hesse and Alan Hickey and Wade Hickey and Peter Hoeschele and Brandon Houghton and Kenny Hsu and Shengli Hu and Xin Hu and Joost Huizinga and Shantanu Jain and Shawn Jain and Joanne Jang and Angela Jiang and Roger Jiang and Haozhun Jin and Denny Jin and Shino Jomoto and Billie Jonn and Heewoo Jun and Tomer Kaftan and Łukasz Kaiser and Ali Kamali and Ingmar Kanitscheider and Nitish Shirish Keskar and Tabarak Khan and Logan Kilpatrick and Jong Wook Kim and Christina Kim and Yongjik Kim and Jan Hendrik Kirchner and Jamie Kiros and Matt Knight and Daniel Kokotajlo and Łukasz Kondraciuk and Andrew Kondrich and Aris Konstantinidis and Kyle Kosic and Gretchen Krueger and Vishal Kuo and Michael Lampe and Ikai Lan and Teddy Lee and Jan Leike and Jade Leung and Daniel Levy and Chak Ming Li and Rachel Lim and Molly Lin and Stephanie Lin and Mateusz Litwin and Theresa Lopez and Ryan Lowe and Patricia Lue and Anna Makanju and Kim Malfacini and Sam Manning and Todor Markov and Yaniv Markovski and Bianca Martin and Katie Mayer and Andrew Mayne and Bob McGrew and Scott Mayer McKinney and Christine McLeavey and Paul McMillan and Jake McNeil and David Medina and Aalok Mehta and Jacob Menick and Luke Metz and Andrey Mishchenko and Pamela Mishkin and Vinnie Monaco and Evan Morikawa and Daniel Mossing and Tong Mu and Mira Murati and Oleg Murk and David Mély and Ashvin Nair and Reiichiro Nakano and Rajeev Nayak and Arvind Neelakantan and Richard Ngo and Hyeonwoo Noh and Long Ouyang and Cullen O'Keefe and Jakub Pachocki and Alex Paino and Joe Palermo and Ashley Pantuliano and Giambattista Parascandolo and Joel Parish and Emy Parparita and Alex Passos and Mikhail Pavlov and Andrew Peng and Adam Perelman and Filipe de Avila Belbute Peres and Michael Petrov and Henrique Ponde de Oliveira Pinto and Michael and Pokorny and Michelle Pokrass and Vitchyr H. Pong and Tolly Powell and Alethea Power and Boris Power and Elizabeth Proehl and Raul Puri and Alec Radford and Jack Rae and Aditya Ramesh and Cameron Raymond and Francis Real and Kendra Rimbach and Carl Ross and Bob Rotsted and Henri Roussez and Nick Ryder and Mario Saltarelli and Ted Sanders and Shibani Santurkar and Girish Sastry and Heather Schmidt and David Schnurr and John Schulman and Daniel Selsam and Kyla Sheppard and Toki Sherbakov and Jessica Shieh and Sarah Shoker and Pranav Shyam and Szymon Sidor and Eric Sigler and Maddie Simens and Jordan Sitkin and Katarina Slama and Ian Sohl and Benjamin Sokolowsky and Yang Song and Natalie Staudacher and Felipe Petroski Such and Natalie Summers and Ilya Sutskever and Jie Tang and Nikolas Tezak and Madeleine B. Thompson and Phil Tillet and Amin Tootoonchian and Elizabeth Tseng and Preston Tuggle and Nick Turley and Jerry Tworek and Juan Felipe Cerón Uribe and Andrea Vallone and Arun Vijayvergiya and Chelsea Voss and Carroll Wainwright and Justin Jay Wang and Alvin Wang and Ben Wang and Jonathan Ward and Jason Wei and CJ Weinmann and Akila Welihinda and Peter Welinder and Jiayi Weng and Lilian Weng and Matt Wiethoff and Dave Willner and Clemens Winter and Samuel Wolrich and Hannah Wong and Lauren Workman and Sherwin Wu and Jeff Wu and Michael Wu and Kai Xiao and Tao Xu and Sarah Yoo and Kevin Yu and Qiming Yuan and Wojciech Zaremba and Rowan Zellers and Chong Zhang and Marvin Zhang and Shengjia Zhao and Tianhao Zheng and Juntang Zhuang and William Zhuk and Barret Zoph},
+  year={2024},
+  eprint={2303.08774},
+  archivePrefix={arXiv},
+  primaryClass={cs.CL},
+  url={https://arxiv.org/abs/2303.08774}, 
+}
+
+@misc{vaswani-etal-2017-attention,
+  title={Attention Is All You Need}, 
+  author={Ashish Vaswani and Noam Shazeer and Niki Parmar and Jakob Uszkoreit and Llion Jones and Aidan N. Gomez and Lukasz Kaiser and Illia Polosukhin},
+  year={2023},
+  eprint={1706.03762},
+  archivePrefix={arXiv},
+  primaryClass={cs.CL},
+  url={https://arxiv.org/abs/1706.03762}, 
+}

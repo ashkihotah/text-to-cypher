@@ -3,27 +3,6 @@ from __future__ import annotations
 from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
-# class CypherDataTypes(Enum):
-#     """
-#     Property types are the most primitive types in Cypher and include the following: 
-#     BOOLEAN, DATE, DURATION, FLOAT, INTEGER, 
-#     LIST, LOCAL DATETIME, LOCAL TIME, POINT, 
-#     STRING, VECTOR, ZONED DATETIME, and ZONED TIME.
-#     """
-#     BOOLEAN = "BOOLEAN"
-#     DATE = "DATE"
-#     DURATION = "DURATION"
-#     FLOAT = "FLOAT"
-#     INTEGER = "INTEGER"
-#     LIST = "LIST"
-#     LOCAL_DATETIME = "LOCAL DATETIME"
-#     LOCAL_TIME = "LOCAL TIME"
-#     POINT = "POINT"
-#     STRING = "STRING"
-#     VECTOR = "VECTOR"
-#     ZONED_DATETIME = "ZONED DATETIME"
-#     ZONED_TIME = "ZONED TIME"
-
 class DataTypeSchema(BaseModel):
     """A data type in the graph."""
     name: str = Field(description="The name of the data type")

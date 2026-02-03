@@ -9,11 +9,14 @@ import tiktoken
 
 from text2cypher.architecture.indexes import SchemaIndex
 from text2cypher.architecture.vector_stores import FAISSIndex
+from text2cypher.config import PROJECT_ROOT
 
 def append_md_to_docstring(md_file: str):
     """Decorator to load docstring from markdown file."""
     def decorator(func):
-        with open(Path(md_file), 'r', encoding='utf-8') as f:
+        path = PROJECT_ROOT / md_file
+
+        with open(path, 'r', encoding='utf-8') as f:
             md_content = f.read()
         if func.__doc__:
             func.__doc__ += "\n" + md_content
@@ -28,6 +31,8 @@ class RetrievalToolKit:
         "neo4j",
         "schema_index",
         "schema_vector_store",
+        "tokenizer",
+        "token_limit",
     )
 
     def __init__(
@@ -85,7 +90,7 @@ class RetrievalToolKit:
             return message
         
         @tool
-        @append_md_to_docstring('rsc/prompts/docstrings/search_for_examples.md')
+        @append_md_to_docstring('rsc/docstrings/search_for_examples.md')
         def search_for(
             components: List[Literal["nodes", "relationships", "properties"]],
             similar_to: str,
@@ -193,7 +198,7 @@ class RetrievalToolKit:
             return message
 
         @tool
-        @append_md_to_docstring('rsc/prompts/docstrings/get_properties_from_examples.md')
+        @append_md_to_docstring('rsc/docstrings/get_properties_from_examples.md')
         def get_properties_from(
             components: List[Literal["nodes", "relationships"]],
             of_types: List[str],
@@ -269,7 +274,7 @@ class RetrievalToolKit:
             return message
         
         @tool
-        @append_md_to_docstring('rsc/prompts/docstrings/get_domains_ranges_of_examples.md')
+        @append_md_to_docstring('rsc/docstrings/get_domains_ranges_of_examples.md')
         def get_domains_ranges_of(
             relationships: List[str],
             similar_to: Optional[List[str]] = None,
@@ -347,7 +352,7 @@ class RetrievalToolKit:
             return message
 
         @tool
-        @append_md_to_docstring('rsc/prompts/docstrings/get_components_with_property_examples.md')
+        @append_md_to_docstring('rsc/docstrings/get_components_with_property_examples.md')
         def get_components_with_property(
             keys: List[str],
             components: List[Literal["nodes", "relationships", "both"]],

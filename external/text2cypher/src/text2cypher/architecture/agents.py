@@ -219,6 +219,12 @@ class RetrievalAgent:
 
                 if isinstance(result, RetrievalAgent.Result):
                     state_updates["result"] = result
+                    state_updates["messages"].append(
+                        ToolMessage(
+                            content="Retrieval process completed. Result registered.", 
+                            tool_call_id=tool_call['id']
+                        )
+                    )
                 else:
                     state_updates["messages"].append(
                         ToolMessage(

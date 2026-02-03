@@ -37,6 +37,9 @@ dependencies = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/text2cypher"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"rsc" = "text2cypher/rsc"
+
 # [tool.uv.workspace]
 # members = [
 #     # "tree-sitter-cypher",

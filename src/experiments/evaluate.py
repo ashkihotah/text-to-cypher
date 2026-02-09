@@ -6,8 +6,15 @@ from langchain_neo4j import Neo4jGraph
 import pandas as pd
 import dotenv
 
+from neo4j.exceptions import (
+    CypherSyntaxError,
+    DatabaseError,
+    CypherTypeError,
+    ClientError,
+)
+
 from text2cypher.evaluation.psj_similarity import provenance_subgraph_jaccard_similarity
-from text2cypher.evaluation.runtime import check_validity, jaccard
+from text2cypher.evaluation.runtime import check_validity, jaccard, execution_accuracy
 
 from experiments.utils import read_df, read_yaml_config
 from experiments.patterns import (
@@ -25,6 +32,7 @@ class Evaluator(DfToDfGenerator):
             username=database,
             password=database,
             database=database,
+            timeout=120,
             # sanitize=True,
         )
 
@@ -54,7 +62,8 @@ class Evaluator(DfToDfGenerator):
     @override
     def generate_output_record(self, input_record: dict) -> dict:
         generated_cypher = input_record.get("generated_cypher", None)
-        if generated_cypher is not None:
+        # check if generated_cypher is NaN
+        if pd.notna(generated_cypher):
             database = input_record['database_reference_alias'].split("_")[-1]
             if self.db != database:
                 self.init_neo4j(
@@ -62,14 +71,7 @@ class Evaluator(DfToDfGenerator):
                     database=database,
                 )
             
-            is_executable, is_empty = check_validity(
-                generated_cypher,
-                neo4j_driver=self.neo4j._driver,
-                database=database,
-                timeout=120,
-            )
-
-            if is_executable:
+            try:
                 similarity = jaccard(
                     generated_cypher,
                     input_record['cypher'],
@@ -80,17 +82,39 @@ class Evaluator(DfToDfGenerator):
                     input_record['cypher'],
                     neo4j=self.neo4j
                 )
-            else:
+                # exec_accuracy = execution_accuracy(
+                #     pred_cypher=generated_cypher,
+                #     target_cypher=input_record['cypher'],
+                #     neo4j_connector=self.neo4j,
+                #     # timeout=120,
+                # )
+                is_executable, is_empty = check_validity(
+                    generated_cypher,
+                    neo4j_driver=self.neo4j._driver,
+                    database=database,
+                    timeout=120,
+                )
+            except (
+                CypherSyntaxError,
+                DatabaseError,
+                CypherTypeError,
+                ClientError,
+            ) as _:
                 similarity = 0.0
                 psj_sim = 0.0
+                # exec_accuracy = 0
+                is_executable = False
+                is_empty = None
         else:
             similarity = None
             psj_sim = None
             is_empty = None
             is_executable = None
+            # exec_accuracy = None
 
         return {
             self.join_column: input_record[self.join_column],
+            # "execution_accuracy": exec_accuracy,
             "jaccard_similarity": similarity,
             "psj_similarity": psj_sim,
             "is_empty": is_empty,

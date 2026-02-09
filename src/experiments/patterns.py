@@ -70,13 +70,15 @@ class DfToDfGenerator:
             print("\nSafe exit requested. Finishing current record before saving...")
         signal.signal(signal.SIGINT, signal_handler)
         
+        unprocessed_index = 0
         try:
-            while not interrupted and bar.n < total:
+            while not interrupted and unprocessed_index < len(self.unprocessed_records):
                 self.processed_records.append(
                     self.generate_output_record(
-                        self.unprocessed_records[bar.n - len(self.processed_records)]
+                        self.unprocessed_records[unprocessed_index]
                     )
                 )
+                unprocessed_index += 1
                 bar.update(1)
                 # input("finished_sample> ")
         except Exception as e:

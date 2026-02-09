@@ -37,9 +37,9 @@ class RetrievalToolKit:
 
     def __init__(
         self,
-        neo4j: Neo4jGraph,
-        schema_index: SchemaIndex, 
-        schema_vector_store: FAISSIndex, 
+        neo4j: Neo4jGraph = None,
+        schema_index: SchemaIndex = None, 
+        schema_vector_store: FAISSIndex = None, 
         token_limit: int = 4000
     ):
         self.init_runtime(

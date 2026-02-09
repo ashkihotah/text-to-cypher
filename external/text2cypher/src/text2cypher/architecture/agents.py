@@ -63,7 +63,7 @@ class RetrievalAgent:
     class ToolKit(RetrievalToolKit):
 
         @override
-        def __init__(self, neo4j: Neo4jGraph, schema_index: SchemaIndex, schema_vector_store: FAISS):
+        def __init__(self, neo4j: Neo4jGraph = None, schema_index: SchemaIndex = None, schema_vector_store: FAISS = None):
             super().__init__(neo4j, schema_index, schema_vector_store)
 
             @tool

@@ -45,6 +45,7 @@ dev = [
     "kaggle>=1.8.2",
     "mlflow>=3.7.0",
     "pytest>=9.0.2",
+    "seaborn>=0.13.2",
 ]
 
 [tool.uv.sources]

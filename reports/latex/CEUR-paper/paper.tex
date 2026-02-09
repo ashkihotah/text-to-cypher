@@ -1,0 +1,98 @@
+%% Options:
+%% twocolumn : Two column layout. Do not use twocolumn for papers submitted to CEUR-WS!
+%% hf: enable header and footer.
+\documentclass[
+% twocolumn,
+% hf,
+]{ceurart}
+
+\sloppy % One can fix some overfulls
+
+%%
+%% Minted listings support 
+%% Need pygment <http://pygments.org/> <http://pypi.python.org/pypi/Pygments>
+\usepackage{listings}
+\usepackage{minted}
+\usepackage{courier}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{subcaption}
+%% auto break lines
+\lstset{breaklines=true}
+
+%% Minted styling
+\usemintedstyle{default}  % Color scheme: default, monokai, vim, etc.
+
+\definecolor{execute\_cypher\_query}{RGB}{220, 93, 85} % Red-Orange
+\definecolor{search\_for}{RGB}{212, 219, 93} % Yellow-Green
+\definecolor{get\_properties\_from}{RGB}{78, 222, 94} % Bright Green
+\definecolor{get\_domains\_ranges\_of}{RGB}{77, 210, 219} % Cyan
+\definecolor{get\_components\_with\_property}{RGB}{89, 87, 222} % Blue-Purple
+\definecolor{register\_retrieval\_result}{RGB}{217, 86, 218} % Pink/Magenta
+
+\setminted{
+  breaklines=true,
+  fontsize=\small,
+  fontfamily=pcr,       % Font family: tt (typewriter), zi (Inconsolata), etc.
+  % linenos=true,        % line numbers
+  % numbersep=5pt,
+  % frame=lines,         % frame style: none, leftline, topline, bottomline, lines, single
+  framesep=2mm,
+  bgcolor=gray!10,      % background color
+  tabsize=4,
+  autogobble=true,     % auto-remove indentation
+  python3=true
+}
+
+\begin{document}
+
+%%
+%% Rights management information.
+%% CC-BY is default license.
+\copyrightyear{2022}
+\copyrightclause{Copyright for this paper by its authors.
+  Use permitted under Creative Commons License Attribution 4.0
+  International (CC BY 4.0).}
+
+\conference{Woodstock'22: Symposium on the irreproducible science,
+  June 07--11, 2022, Woodstock, NY}
+
+\title{Text-to-Cypher: An Agentic Approach}
+
+\author[1]{Nicolò Resta}[%
+email=n.resta6@studenti.uniba.it,
+url=https://github.com/ashkihotah,
+]
+\address[1]{
+  Department of Computer Science, University of Bari Aldo Moro,
+  Via E. Orabona, 4, 70125 Bari, Italy
+}
+
+
+\begin{abstract}
+  The translation of natural language questions into database queries, known as Text-to-Query, remains a significant challenge, especially for complex formalisms like Cypher used in Property Graph Databases. While recent advancements have leveraged Large Language Models (LLMs), existing solutions often rely on extensive fine-tuning or fail to adequately address the semantic gap between unstructured intent and rigid schema structures. In this paper, we propose a novel, zero-shot agentic framework for the Text-to-Cypher task that autonomously navigates the schema discovery and query generation process. Our system, built on LangChain and LangGraph with GPT-4.1 as the core reasoning engine, employs a specialized suite of tools and a hybrid indexing strategy combining vector-based semantic retrieval with structural inverted indexes. This architecture enables the agent to systematically identify key concepts, discover relevant formalisms, link them effectively, and validate assumptions through direct database interaction. We evaluate our approach on the \textit{neo4j/text2cypher-2024v1} benchmark, demonstrating that our zero-shot agent matches the performance of state-of-the-art fine-tuned models, achieving an Exact Match score of 32.62\%. Furthermore, we provide a detailed analysis of the agent's behavior, highlighting its highly parallelized "search-then-refine" strategy and identifying current limitations in handling complex, non-linear reasoning paths. Our findings suggest that general-purpose reasoning agents, equipped with domain-specific tools, offer a powerful and flexible alternative to traditional fine-tuning for semantic parsing tasks.
+\end{abstract}
+
+\begin{keywords}
+  Text-to-Query \sep
+  Text-to-Cypher \sep
+  Information Retrieval \sep
+  Knowledge Graphs \sep
+  Agentic Systems  
+\end{keywords}
+
+%%
+%% This command processes the author and affiliation and title
+%% information and builds the first part of the formatted document.
+\maketitle
+
+\input{introduction.tex}
+\input{related_works.tex}
+\input{approach.tex}
+\input{experiments.tex}
+\input{conclusions.tex}
+
+\bibliography{text-to-cypher}
+
+\end{document}

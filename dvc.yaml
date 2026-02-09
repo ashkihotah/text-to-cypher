@@ -47,3 +47,17 @@ stages:
     outs:
       - data/interim/evaluations/gpt-4.1/train.csv:
           persist: true
+  
+  evaluate-test-gpt-4.1-generation:
+    cmd: >-
+      python -m experiments.evaluate
+      --dataset-df ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      --predictions-df ./data/interim/neo4j-2024v1/gpt-4.1/test-trajectories.csv
+      --output-df ./data/interim/evaluations/gpt-4.1/test.csv
+    deps:
+      - data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      - data/interim/neo4j-2024v1/gpt-4.1/test-trajectories.csv
+      - src/experiments/evaluate.py
+    outs:
+      - data/interim/evaluations/gpt-4.1/test.csv:
+          persist: true

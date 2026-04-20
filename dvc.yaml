@@ -34,6 +34,18 @@ stages:
       - data/interim/neo4j-2024v1/gpt-4.1/test-trajectories.csv:
           persist: true
   
+  test-generate-with-neo4j-gemma-2-9b-it:
+    cmd: >-
+      python -m experiments.gen_neo4j_gemma_2_9b_it
+      --input-df ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      --output-df ./data/interim/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv
+    deps:
+      - data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      - src/experiments/gen_neo4j_gemma_2_9b_it.py
+    outs:
+      - data/interim/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv:
+          persist: true
+
   evaluate-train-gpt-4.1-generation:
     cmd: >-
       python -m experiments.evaluate

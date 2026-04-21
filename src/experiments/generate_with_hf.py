@@ -14,6 +14,7 @@ from transformers import (
     BitsAndBytesConfig,
 )
 
+import re
 import os
 from dotenv import load_dotenv
 
@@ -31,6 +32,7 @@ class CypherGenerator(DfToDfGenerator):
         self,
         in_df: pd.DataFrame,
         join_column: str,
+        model_name: str,
         out_df: pd.DataFrame = None,
     ):
         super().__init__(
@@ -38,27 +40,33 @@ class CypherGenerator(DfToDfGenerator):
             join_column=join_column,
             out_df=out_df,
         )
+        # bnb_config = BitsAndBytesConfig(
+        #     # 4 bit quantization parameters
+        #     load_in_4bit=True,
+        #     bnb_4bit_use_double_quant=True,
+        #     bnb_4bit_quant_type="nf4",
+        #     bnb_4bit_compute_dtype=torch.bfloat16,
 
-        model_name = "neo4j/text2cypher-gemma-2-9b-it-finetuned-2024v1"
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_compute_dtype=torch.bfloat16,
-        )
+        #     # # 8 bit quantization parameters (uncomment if using 8 bit quantization)
+        #     # load_in_8bit=True,
+        #     # bnb_8bit_use_double_quant=True,
+        #     # bnb_8bit_quant_type="nf8",
+        #     # bnb_8bit_compute_dtype=torch.bfloat16,
+        # )
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
-            quantization_config=bnb_config,
+            # quantization_config=bnb_config,
             torch_dtype=torch.bfloat16,
-            attn_implementation="eager",
-            low_cpu_mem_usage=True,
+            # attn_implementation="eager",
+            # low_cpu_mem_usage=True,
             token=os.getenv("HF_TOKEN"),
         )
         self.user_instruction = (
-            "Generate Cypher statement to query a graph database. "
-            "Use only the provided relationship types and properties in the schema. \n"
-            "Schema: {schema} \n Question: {question}  \n Cypher output: "
+            "Below is a database Neo4j schema and a question related to that database. "
+            "Write a Cypher query to answer the question. "
+            "Use only the provided relationship types and properties in the schema.\n\n"
+            "### Schema:\n{schema}\n\n### Question:\n{question}\n\n### Cypher Query:\n\n"
         )
         self.model_generate_parameters = {
             "top_p": 0.9,
@@ -84,16 +92,12 @@ class CypherGenerator(DfToDfGenerator):
         return chat
 
     def _postprocess_output_cypher(self, output_cypher: str) -> str:
-        # Remove any explanation. E.g.  MATCH...\n\n**Explanation:**\n\n -> MATCH...
-        # Remove cypher indicator. E.g.```cypher\nMATCH...```` --> MATCH...
-        # Note: Possible to have both:
-        #   E.g. ```cypher\nMATCH...````\n\n**Explanation:**\n\n --> MATCH...
-        partition_by = "**Explanation:**"
-        output_cypher, _, _ = output_cypher.partition(partition_by)
-        output_cypher = output_cypher.strip("`\n")
-        output_cypher = output_cypher.lstrip("cypher\n")
-        output_cypher = output_cypher.strip("`\n ")
-        return output_cypher
+        pattern = r"```(?:cypher)?\s*((?:.*|\s)+)\s*```"
+        match = re.search(pattern, output_cypher)
+        if match:
+            return match.group(1).strip()
+        else:
+            return output_cypher.strip()
 
     @override
     def generate_output_record(self, input_record: dict) -> dict:
@@ -140,12 +144,8 @@ def init_parser():
     parser.add_argument("--join-column", type=str, default="df.index",
         help="Column name to join input and output dataframes during resumption.",
     )
-    parser.add_argument("--user-instruction", type=str, default="You are a helpful assistant.",
-        help="The user instruction to use for data generation. " \
-        "It must contain the placeholders {schema} and {question} for schema and question respectively.",
-    )
-    parser.add_argument("--generation-params", type=str, default=None,
-        help="Path to the YAML config file for model generation parameters.",
+    parser.add_argument("--model-name", type=str,
+        help="Name of the Hugging Face model to use for generation (e.g., 'Azzedde/llama3.1-8b-text2cypher').",
     )
     parser.add_argument("--verbose", type=bool, default=True,
         help="Enable verbose logging.",
@@ -168,6 +168,7 @@ def main():
     generator = CypherGenerator(
         in_df=input_df,
         join_column=args.join_column,
+        model_name=args.model_name,
         out_df=output_df,
     )
     generator.generate(

@@ -39,11 +39,25 @@ stages:
       python -m experiments.gen_neo4j_gemma_2_9b_it
       --input-df ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet
       --output-df ./data/interim/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv
+      --model-name neo4j/text2cypher-gemma-2-9b-it-finetuned-2024v1
     deps:
       - data/raw/neo4j-2024v1/test-00000-of-00001.parquet
       - src/experiments/gen_neo4j_gemma_2_9b_it.py
     outs:
       - data/interim/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv:
+          persist: true
+  
+  test-generate-with-llama3.1-8b-text2cypher:
+    cmd: >-
+      python -m experiments.gen_neo4j_gemma_2_9b_it
+      --input-df ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      --output-df ./data/interim/neo4j-2024v1/llama3.1-8b/test-cyphers.csv
+      --model-name Azzedde/llama3.1-8b-text2cypher
+    deps:
+      - data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      - src/experiments/gen_neo4j_gemma_2_9b_it.py
+    outs:
+      - data/interim/neo4j-2024v1/llama3.1-8b/test-cyphers.csv:
           persist: true
 
   evaluate-train-gpt-4.1-generation:
@@ -72,4 +86,32 @@ stages:
       - src/experiments/evaluate.py
     outs:
       - data/interim/evaluations/gpt-4.1/test.csv:
+          persist: true
+  
+  evaluate-test-gemma-2-9b-it-generation:
+    cmd: >-
+      python -m experiments.evaluate
+      --dataset-df ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      --predictions-df ./data/interim/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv
+      --output-df ./data/interim/evaluations/gemma-2-9b-it/test.csv
+    deps:
+      - data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      - data/interim/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv
+      - src/experiments/evaluate.py
+    outs:
+      - data/interim/evaluations/gemma-2-9b-it/test.csv:
+          persist: true
+  
+  evaluate-test-llama3.1-8b-generation:
+    cmd: >-
+      python -m experiments.evaluate
+      --dataset-df ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      --predictions-df ./data/interim/neo4j-2024v1/llama3.1-8b/test-cyphers.csv
+      --output-df ./data/interim/evaluations/llama3.1-8b/test.csv
+    deps:
+      - data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      - data/interim/neo4j-2024v1/llama3.1-8b/test-cyphers.csv
+      - src/experiments/evaluate.py
+    outs:
+      - data/interim/evaluations/llama3.1-8b/test.csv:
           persist: true

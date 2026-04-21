@@ -36,26 +36,26 @@ stages:
   
   test-generate-with-neo4j-gemma-2-9b-it:
     cmd: >-
-      python -m experiments.gen_neo4j_gemma_2_9b_it
+      python -m experiments.generate_with_hf
       --input-df ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet
       --output-df ./data/interim/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv
       --model-name neo4j/text2cypher-gemma-2-9b-it-finetuned-2024v1
     deps:
       - data/raw/neo4j-2024v1/test-00000-of-00001.parquet
-      - src/experiments/gen_neo4j_gemma_2_9b_it.py
+      - src/experiments/generate_with_hf.py
     outs:
       - data/interim/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv:
           persist: true
   
   test-generate-with-llama3.1-8b-text2cypher:
     cmd: >-
-      python -m experiments.gen_neo4j_gemma_2_9b_it
+      python -m experiments.generate_with_hf
       --input-df ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet
       --output-df ./data/interim/neo4j-2024v1/llama3.1-8b/test-cyphers.csv
       --model-name Azzedde/llama3.1-8b-text2cypher
     deps:
       - data/raw/neo4j-2024v1/test-00000-of-00001.parquet
-      - src/experiments/gen_neo4j_gemma_2_9b_it.py
+      - src/experiments/generate_with_hf.py
     outs:
       - data/interim/neo4j-2024v1/llama3.1-8b/test-cyphers.csv:
           persist: true

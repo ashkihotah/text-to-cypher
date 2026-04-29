@@ -1,0 +1,288 @@
+schema: '2.0'
+stages:
+  test-generate-with-gpt-4.1:
+    cmd: python -m experiments.generate --input-df 
+      ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet --output-df 
+      ./data/interim/generations/neo4j-2024v1/gpt-4.1/test-trajectories.csv 
+      --workflow native_tool_call --provider azure --model gpt-4.1 --verbose 
+      True --log-dir-path ./logs/
+    deps:
+    - path: data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      hash: md5
+      md5: 97e2f671574b6f8348cce7bc61032f30
+      size: 835304
+    - path: src/experiments/generate.py
+      hash: md5
+      md5: 9d24652b2270a7b3a0672b11cf7d1b88
+      size: 8031
+    outs:
+    - path: data/interim/generations/neo4j-2024v1/gpt-4.1/test-trajectories.csv
+      hash: md5
+      md5: 0ddcf34643b5a14ba3064f3e2b897eb4
+      size: 57939405
+  test-generate-with-gemma-2-9b-it:
+    cmd: python -m experiments.generate_with_hf --input-df 
+      ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet --output-df 
+      ./data/interim/generations/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv 
+      --model-name neo4j/text2cypher-gemma-2-9b-it-finetuned-2024v1
+    deps:
+    - path: data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      hash: md5
+      md5: 97e2f671574b6f8348cce7bc61032f30
+      size: 835304
+    - path: src/experiments/generate_with_hf.py
+      hash: md5
+      md5: 754ad034f93c1cec204f826490b99fb4
+      size: 5954
+    outs:
+    - path: data/interim/generations/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv
+      hash: md5
+      md5: 05feecf0e51f5ad14adc43451cf3c3d0
+      size: 360753
+  test-generate-with-llama3.1-8b:
+    cmd: python -m experiments.generate_with_hf --input-df 
+      ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet --output-df 
+      ./data/interim/generations/neo4j-2024v1/llama3.1-8b/test-cyphers.csv 
+      --model-name Azzedde/llama3.1-8b-text2cypher
+    deps:
+    - path: data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      hash: md5
+      md5: 97e2f671574b6f8348cce7bc61032f30
+      size: 835304
+    - path: src/experiments/generate_with_hf.py
+      hash: md5
+      md5: 754ad034f93c1cec204f826490b99fb4
+      size: 5954
+    outs:
+    - path: data/interim/generations/neo4j-2024v1/llama3.1-8b/test-cyphers.csv
+      hash: md5
+      md5: f4266608002899287b5730fd449d9622
+      size: 337510
+
+  test-collect-predictions-of-neo4j-2024v1:
+    cmd: python -m experiments.collect_predictions --predictions-df 
+      ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet --output-df 
+      ./data/interim/predictions/neo4j-2024v1/test-ground-truths.csv 
+      --predictions-subfolder 
+      ./data/interim/predictions/neo4j-2024v1/test-ground-truths --cypher-column
+      cypher
+    deps:
+    - path: data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      hash: md5
+      md5: 97e2f671574b6f8348cce7bc61032f30
+      size: 835304
+    - path: src/experiments/collect_predictions.py
+      hash: md5
+      md5: 903486b4791cf37afdde557b607a0aae
+      size: 11056
+    outs:
+    - path: data/interim/predictions/neo4j-2024v1/test-ground-truths.csv
+      hash: md5
+      md5: d86ed6e9ed918e4443d7a9c36cad0058
+      size: 220585
+  test-collect-predictions-of-gpt-4.1-generations:
+    cmd: python -m experiments.collect_predictions --databases-df 
+      ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet --predictions-df 
+      ./data/interim/generations/neo4j-2024v1/gpt-4.1/test-trajectories.csv 
+      --output-df ./data/interim/predictions/neo4j-2024v1/gpt-4.1/test.csv 
+      --predictions-subfolder 
+      ./data/interim/predictions/neo4j-2024v1/gpt-4.1/test --cypher-column 
+      generated_cypher
+    deps:
+    - path: data/interim/generations/neo4j-2024v1/gpt-4.1/test-trajectories.csv
+      hash: md5
+      md5: 0ddcf34643b5a14ba3064f3e2b897eb4
+      size: 57939405
+    - path: data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      hash: md5
+      md5: 97e2f671574b6f8348cce7bc61032f30
+      size: 835304
+    - path: src/experiments/collect_predictions.py
+      hash: md5
+      md5: 903486b4791cf37afdde557b607a0aae
+      size: 11056
+    outs:
+    - path: data/interim/predictions/neo4j-2024v1/gpt-4.1/test.csv
+      hash: md5
+      md5: 1ae32201254422b6bd98050ef9ff8b01
+      size: 187065
+  test-collect-predictions-of-gemma-2-9b-it-generations:
+    cmd: python -m experiments.collect_predictions --databases-df 
+      ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet --predictions-df 
+      ./data/interim/generations/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv 
+      --output-df ./data/interim/predictions/neo4j-2024v1/gemma-2-9b-it/test.csv
+      --predictions-subfolder 
+      ./data/interim/predictions/neo4j-2024v1/gemma-2-9b-it/test --cypher-column
+      generated_cypher
+    deps:
+    - path: data/interim/generations/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv
+      hash: md5
+      md5: 05feecf0e51f5ad14adc43451cf3c3d0
+      size: 360753
+    - path: data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      hash: md5
+      md5: 97e2f671574b6f8348cce7bc61032f30
+      size: 835304
+    - path: src/experiments/collect_predictions.py
+      hash: md5
+      md5: 903486b4791cf37afdde557b607a0aae
+      size: 11056
+    outs:
+    - path: data/interim/predictions/neo4j-2024v1/gemma-2-9b-it/test.csv
+      hash: md5
+      md5: 711310ae11bf6b9142304dd53a585e4b
+      size: 205092
+  test-collect-predictions-of-llama3.1-8b-generations:
+    cmd: python -m experiments.collect_predictions --databases-df 
+      ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet --predictions-df 
+      ./data/interim/generations/neo4j-2024v1/llama3.1-8b/test-cyphers.csv 
+      --output-df ./data/interim/predictions/neo4j-2024v1/llama3.1-8b/test.csv 
+      --predictions-subfolder 
+      ./data/interim/predictions/neo4j-2024v1/llama3.1-8b/test --cypher-column 
+      generated_cypher
+    deps:
+    - path: data/interim/generations/neo4j-2024v1/llama3.1-8b/test-cyphers.csv
+      hash: md5
+      md5: f4266608002899287b5730fd449d9622
+      size: 337510
+    - path: data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      hash: md5
+      md5: 97e2f671574b6f8348cce7bc61032f30
+      size: 835304
+    - path: src/experiments/collect_predictions.py
+      hash: md5
+      md5: 903486b4791cf37afdde557b607a0aae
+      size: 11056
+    outs:
+    - path: data/interim/predictions/neo4j-2024v1/llama3.1-8b/test.csv
+      hash: md5
+      md5: 3d61004ea30c779a500a7b7b9df43e19
+      size: 183052
+
+  setup_nltk:
+    cmd: uv run python -m nltk.downloader -d ./rsc/nltk_data punkt punkt_tab
+    outs:
+    - path: ./rsc/nltk_data
+      hash: md5
+      md5: 39fb8bb5f1b4812828aef928b15440d9.dir
+      size: 66355480
+      nfiles: 120
+  evaluate-test-llama3.1-8b-generation:
+    cmd: python -m experiments.evaluate --dataset-df 
+      ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet --generations-df 
+      ./data/interim/generations/neo4j-2024v1/llama3.1-8b/test-cyphers.csv 
+      --predictions-df 
+      ./data/interim/predictions/neo4j-2024v1/llama3.1-8b/test.csv 
+      --ground-truths-df 
+      ./data/interim/predictions/neo4j-2024v1/test-ground-truths.csv --output-df
+      ./data/interim/evaluations/neo4j-2024v1/llama3.1-8b/test.csv
+    deps:
+    - path: data/interim/generations/neo4j-2024v1/llama3.1-8b/test-cyphers.csv
+      hash: md5
+      md5: f4266608002899287b5730fd449d9622
+      size: 337510
+    - path: data/interim/predictions/neo4j-2024v1/llama3.1-8b/test.csv
+      hash: md5
+      md5: 3d61004ea30c779a500a7b7b9df43e19
+      size: 183052
+    - path: data/interim/predictions/neo4j-2024v1/test-ground-truths.csv
+      hash: md5
+      md5: d86ed6e9ed918e4443d7a9c36cad0058
+      size: 220585
+    - path: data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      hash: md5
+      md5: 97e2f671574b6f8348cce7bc61032f30
+      size: 835304
+    - path: rsc/nltk_data
+      hash: md5
+      md5: 39fb8bb5f1b4812828aef928b15440d9.dir
+      size: 66355480
+      nfiles: 120
+    - path: src/experiments/evaluate.py
+      hash: md5
+      md5: 942a6a66c5baab97926ebf0c05d24beb
+      size: 8077
+    outs:
+    - path: data/interim/evaluations/neo4j-2024v1/llama3.1-8b/test.csv
+      hash: md5
+      md5: 8b28c3afc1c3498ca1bc9562ae5beeab
+      size: 105080
+  evaluate-test-gpt-4.1-generation:
+    cmd: python -m experiments.evaluate --dataset-df 
+      ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet --generations-df 
+      ./data/interim/generations/neo4j-2024v1/gpt-4.1/test-trajectories.csv 
+      --predictions-df ./data/interim/predictions/neo4j-2024v1/gpt-4.1/test.csv 
+      --ground-truths-df 
+      ./data/interim/predictions/neo4j-2024v1/test-ground-truths.csv --output-df
+      ./data/interim/evaluations/neo4j-2024v1/gpt-4.1/test.csv
+    deps:
+    - path: data/interim/generations/neo4j-2024v1/gpt-4.1/test-trajectories.csv
+      hash: md5
+      md5: 0ddcf34643b5a14ba3064f3e2b897eb4
+      size: 57939405
+    - path: data/interim/predictions/neo4j-2024v1/gpt-4.1/test.csv
+      hash: md5
+      md5: 1ae32201254422b6bd98050ef9ff8b01
+      size: 187065
+    - path: data/interim/predictions/neo4j-2024v1/test-ground-truths.csv
+      hash: md5
+      md5: d86ed6e9ed918e4443d7a9c36cad0058
+      size: 220585
+    - path: data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      hash: md5
+      md5: 97e2f671574b6f8348cce7bc61032f30
+      size: 835304
+    - path: rsc/nltk_data
+      hash: md5
+      md5: 39fb8bb5f1b4812828aef928b15440d9.dir
+      size: 66355480
+      nfiles: 120
+    - path: src/experiments/evaluate.py
+      hash: md5
+      md5: 942a6a66c5baab97926ebf0c05d24beb
+      size: 8077
+    outs:
+    - path: data/interim/evaluations/neo4j-2024v1/gpt-4.1/test.csv
+      hash: md5
+      md5: 6ce5205d4849a2624c2b8779ec372313
+      size: 99602
+  evaluate-test-gemma-2-9b-it-generation:
+    cmd: python -m experiments.evaluate --dataset-df 
+      ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet --generations-df 
+      ./data/interim/generations/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv 
+      --predictions-df 
+      ./data/interim/predictions/neo4j-2024v1/gemma-2-9b-it/test.csv 
+      --ground-truths-df 
+      ./data/interim/predictions/neo4j-2024v1/test-ground-truths.csv --output-df
+      ./data/interim/evaluations/neo4j-2024v1/gemma-2-9b-it/test.csv
+    deps:
+    - path: data/interim/generations/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv
+      hash: md5
+      md5: 05feecf0e51f5ad14adc43451cf3c3d0
+      size: 360753
+    - path: data/interim/predictions/neo4j-2024v1/gemma-2-9b-it/test.csv
+      hash: md5
+      md5: 711310ae11bf6b9142304dd53a585e4b
+      size: 205092
+    - path: data/interim/predictions/neo4j-2024v1/test-ground-truths.csv
+      hash: md5
+      md5: d86ed6e9ed918e4443d7a9c36cad0058
+      size: 220585
+    - path: data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      hash: md5
+      md5: 97e2f671574b6f8348cce7bc61032f30
+      size: 835304
+    - path: rsc/nltk_data
+      hash: md5
+      md5: 39fb8bb5f1b4812828aef928b15440d9.dir
+      size: 66355480
+      nfiles: 120
+    - path: src/experiments/evaluate.py
+      hash: md5
+      md5: 942a6a66c5baab97926ebf0c05d24beb
+      size: 8077
+    outs:
+    - path: data/interim/evaluations/neo4j-2024v1/gemma-2-9b-it/test.csv
+      hash: md5
+      md5: b32396ce84ffba34ebde6458d1db3a8d
+      size: 106337

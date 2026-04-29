@@ -15,8 +15,10 @@ class DfToDfGenerator:
         in_df: pd.DataFrame,
         join_column: str,
         out_df: pd.DataFrame = None,
+        save_every: int = 10, # number of minutes after which to save progress
     ):
         self.join_column = join_column
+        self.save_every = save_every
         self.resume(in_df, out_df)
     
     @abstractmethod
@@ -24,7 +26,7 @@ class DfToDfGenerator:
         raise NotImplementedError
     
     def resume(self, in_df: pd.DataFrame, out_df: pd.DataFrame = None):
-        if self.join_column == 'df.index':
+        if self.join_column == 'df.index' and 'df.index' not in in_df.columns:
             in_df['df.index'] = in_df.index
         print(in_df.info())
         print(in_df.head())
@@ -44,26 +46,10 @@ class DfToDfGenerator:
 
     def generate(self, save_path: str, **kwargs):
         total = len(self.unprocessed_records) + len(self.processed_records)
-        bar = tqdm(total=total, unit="sample", desc="Evaluating trajectories")
+        bar = tqdm(total=total, unit="sample")
         bar.update(len(self.processed_records))
 
         interrupted = False
-        # def on_press(key):
-        #     nonlocal interrupted
-        #     try:
-        #         if key.char == 'ì':
-        #             interrupted = True
-        #             print("\nGeneration interrupted by the user!")
-        #             print(
-        #                 "I'm now safely interrupting the process",
-        #                 f"and saving generated data to {save_path}..."
-        #             )
-        #             return False  # Stop listener
-        #     except AttributeError:
-        #         pass  # Ignore special keys
-        # listener = keyboard.Listener(on_press=on_press)
-        # listener.start()
-        original_sigint_handler = signal.getsignal(signal.SIGINT)
         def signal_handler(signum, frame):
             nonlocal interrupted
             interrupted = True
@@ -71,6 +57,7 @@ class DfToDfGenerator:
         signal.signal(signal.SIGINT, signal_handler)
         
         unprocessed_index = 0
+        last_save_time = pd.Timestamp.now()
         try:
             while not interrupted and unprocessed_index < len(self.unprocessed_records):
                 self.processed_records.append(
@@ -80,11 +67,17 @@ class DfToDfGenerator:
                 )
                 unprocessed_index += 1
                 bar.update(1)
-                # input("finished_sample> ")
+
+                elapse_min = (pd.Timestamp.now() - last_save_time).total_seconds() / 60
+                if elapse_min > self.save_every:
+                    df = pd.DataFrame(self.processed_records)
+                    print(f"\033[92mSaving progress after {elapse_min:.2f} minutes\033[0m")
+                    save_df(df, save_path, **kwargs)
+                    last_save_time = pd.Timestamp.now()
         except Exception as e:
             traceback.print_exc()
         finally:
             df = pd.DataFrame(self.processed_records)
-            print("Saving generated data to", save_path)
+            print(f"\033[92mSaving generated data to {save_path}\033[0m")
             save_df(df, save_path, **kwargs)
             bar.close()

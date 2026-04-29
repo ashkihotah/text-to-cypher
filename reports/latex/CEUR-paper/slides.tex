@@ -197,19 +197,19 @@
             \item \textbf{Pros}: Very fast and effective for matching short terms/typos.
             \item \textbf{Cons}: Semantic gaps (Synonyms, Polysemy, etc.).
         \end{itemize}
-        % \pause
+        \pause
         \item \textbf{Contextual Dense Embeddings} (BERT-based transformers):
         \begin{itemize}
             \item \textbf{Pros}: Effective for sentence-level semantics.
             \item \textbf{Cons}: Ineffective for very short de-contextualized terms + high compute cost.
         \end{itemize}
-        % \pause
+        \pause
         \item \textbf{FastText} (Subword Static Word Embeddings (S-SWEs)):
         \begin{itemize}
             \item \textbf{Pros}: Fast lookup; captures semantics of words/subwords w/o overhead.
             \item \textbf{Cons}: Large memory requirements for storing the vocabulary.
         \end{itemize}
-        % \pause
+        \pause
         \item \textbf{Model2Vec}\footnote{\cite{tulkens-2024-model2vec}} (Static Distilled Embeddings) - \textbf{\textit{Our Choice}}:
         \begin{itemize}
             \item \textbf{Pros}: Pros of FastText + memory efficiency

@@ -1,27 +1,27 @@
 stages:
 
-  train-generate-with-gpt-4.1:
-    cmd: >-
-      python -m experiments.generate
-      --input-df ./data/raw/neo4j-2024v1/train-00000-of-00001.parquet
-      --output-df ./data/interim/neo4j-2024v1/gpt-4.1/train-trajectories.csv
-      --workflow native_tool_call
-      --provider azure
-      --model gpt-4.1
-      --verbose True
-      --log-dir-path ./logs/
-    deps:
-      - data/raw/neo4j-2024v1/train-00000-of-00001.parquet
-      - src/experiments/generate.py
-    outs:
-      - data/interim/neo4j-2024v1/gpt-4.1/train-trajectories.csv:
-          persist: true
+  # train-generate-with-gpt-4.1:
+  #   cmd: >-
+  #     python -m experiments.generate
+  #     --input-df ./data/raw/neo4j-2024v1/train-00000-of-00001.parquet
+  #     --output-df ./data/interim/generations/neo4j-2024v1/gpt-4.1/train-trajectories.csv
+  #     --workflow native_tool_call
+  #     --provider azure
+  #     --model gpt-4.1
+  #     --verbose True
+  #     --log-dir-path ./logs/
+  #   deps:
+  #     - data/raw/neo4j-2024v1/train-00000-of-00001.parquet
+  #     - src/experiments/generate.py
+  #   outs:
+  #     - data/interim/generations/neo4j-2024v1/gpt-4.1/train-trajectories.csv:
+  #         persist: true
 
   test-generate-with-gpt-4.1:
     cmd: >-
       python -m experiments.generate
       --input-df ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet
-      --output-df ./data/interim/neo4j-2024v1/gpt-4.1/test-trajectories.csv
+      --output-df ./data/interim/generations/neo4j-2024v1/gpt-4.1/test-trajectories.csv
       --workflow native_tool_call
       --provider azure
       --model gpt-4.1
@@ -31,87 +31,169 @@ stages:
       - data/raw/neo4j-2024v1/test-00000-of-00001.parquet
       - src/experiments/generate.py
     outs:
-      - data/interim/neo4j-2024v1/gpt-4.1/test-trajectories.csv:
+      - data/interim/generations/neo4j-2024v1/gpt-4.1/test-trajectories.csv:
           persist: true
   
-  test-generate-with-neo4j-gemma-2-9b-it:
+  test-generate-with-gemma-2-9b-it:
     cmd: >-
       python -m experiments.generate_with_hf
       --input-df ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet
-      --output-df ./data/interim/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv
+      --output-df ./data/interim/generations/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv
       --model-name neo4j/text2cypher-gemma-2-9b-it-finetuned-2024v1
     deps:
       - data/raw/neo4j-2024v1/test-00000-of-00001.parquet
       - src/experiments/generate_with_hf.py
     outs:
-      - data/interim/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv:
+      - data/interim/generations/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv:
           persist: true
   
-  test-generate-with-llama3.1-8b-text2cypher:
+  test-generate-with-llama3.1-8b:
     cmd: >-
       python -m experiments.generate_with_hf
       --input-df ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet
-      --output-df ./data/interim/neo4j-2024v1/llama3.1-8b/test-cyphers.csv
+      --output-df ./data/interim/generations/neo4j-2024v1/llama3.1-8b/test-cyphers.csv
       --model-name Azzedde/llama3.1-8b-text2cypher
     deps:
       - data/raw/neo4j-2024v1/test-00000-of-00001.parquet
       - src/experiments/generate_with_hf.py
     outs:
-      - data/interim/neo4j-2024v1/llama3.1-8b/test-cyphers.csv:
+      - data/interim/generations/neo4j-2024v1/llama3.1-8b/test-cyphers.csv:
           persist: true
 
-  evaluate-train-gpt-4.1-generation:
+  
+  test-collect-predictions-of-neo4j-2024v1:
     cmd: >-
-      python -m experiments.evaluate
-      --dataset-df ./data/raw/neo4j-2024v1/train-00000-of-00001.parquet
-      --predictions-df ./data/interim/neo4j-2024v1/gpt-4.1/train-trajectories.csv
-      --output-df ./data/interim/evaluations/gpt-4.1/train.csv
+      python -m experiments.collect_predictions
+      --predictions-df ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      --output-df ./data/interim/predictions/neo4j-2024v1/test-ground-truths.csv
+      --predictions-subfolder ./data/interim/predictions/neo4j-2024v1/test-ground-truths
+      --cypher-column cypher
     deps:
-      - data/raw/neo4j-2024v1/train-00000-of-00001.parquet
-      - data/interim/neo4j-2024v1/gpt-4.1/train-trajectories.csv
-      - src/experiments/evaluate.py
+      - data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      - src/experiments/collect_predictions.py
     outs:
-      - data/interim/evaluations/gpt-4.1/train.csv:
+      - data/interim/predictions/neo4j-2024v1/test-ground-truths.csv:
           persist: true
+
+  test-collect-predictions-of-gpt-4.1-generations:
+    cmd: >-
+      python -m experiments.collect_predictions
+      --databases-df ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      --predictions-df ./data/interim/generations/neo4j-2024v1/gpt-4.1/test-trajectories.csv
+      --output-df ./data/interim/predictions/neo4j-2024v1/gpt-4.1/test.csv
+      --predictions-subfolder ./data/interim/predictions/neo4j-2024v1/gpt-4.1/test
+      --cypher-column generated_cypher
+    deps:
+      - data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      - data/interim/generations/neo4j-2024v1/gpt-4.1/test-trajectories.csv
+      - src/experiments/collect_predictions.py
+    outs:
+      - data/interim/predictions/neo4j-2024v1/gpt-4.1/test.csv:
+          persist: true
+
+  test-collect-predictions-of-gemma-2-9b-it-generations:
+    cmd: >-
+      python -m experiments.collect_predictions
+      --databases-df ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      --predictions-df ./data/interim/generations/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv
+      --output-df ./data/interim/predictions/neo4j-2024v1/gemma-2-9b-it/test.csv
+      --predictions-subfolder ./data/interim/predictions/neo4j-2024v1/gemma-2-9b-it/test
+      --cypher-column generated_cypher
+    deps:
+      - data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      - data/interim/generations/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv
+      - src/experiments/collect_predictions.py
+    outs:
+      - data/interim/predictions/neo4j-2024v1/gemma-2-9b-it/test.csv:
+          persist: true
+  
+  test-collect-predictions-of-llama3.1-8b-generations:
+    cmd: >-
+      python -m experiments.collect_predictions
+      --databases-df ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      --predictions-df ./data/interim/generations/neo4j-2024v1/llama3.1-8b/test-cyphers.csv
+      --output-df ./data/interim/predictions/neo4j-2024v1/llama3.1-8b/test.csv
+      --predictions-subfolder ./data/interim/predictions/neo4j-2024v1/llama3.1-8b/test
+      --cypher-column generated_cypher
+    deps:
+      - data/raw/neo4j-2024v1/test-00000-of-00001.parquet
+      - data/interim/generations/neo4j-2024v1/llama3.1-8b/test-cyphers.csv
+      - src/experiments/collect_predictions.py
+    outs:
+      - data/interim/predictions/neo4j-2024v1/llama3.1-8b/test.csv:
+          persist: true
+
+
+  setup_nltk:
+    cmd: uv run python -m nltk.downloader -d ./rsc/nltk_data punkt punkt_tab
+    outs:
+      - ./rsc/nltk_data:
+          persist: true
+
+  # evaluate-train-gpt-4.1-generation:
+  #   cmd: >-
+  #     python -m experiments.evaluate
+  #     --dataset-df ./data/raw/neo4j-2024v1/train-00000-of-00001.parquet
+  #     --predictions-df ./data/interim/generations/neo4j-2024v1/gpt-4.1/train-trajectories.csv
+  #     --output-df ./data/interim/evaluations/gpt-4.1/train.csv
+  #   deps:
+  #     - data/raw/neo4j-2024v1/train-00000-of-00001.parquet
+  #     - data/interim/generations/neo4j-2024v1/gpt-4.1/train-trajectories.csv
+  #     - src/experiments/evaluate.py
+  #   outs:
+  #     - data/interim/evaluations/gpt-4.1/train.csv:
+  #         persist: true
   
   evaluate-test-gpt-4.1-generation:
     cmd: >-
       python -m experiments.evaluate
       --dataset-df ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet
-      --predictions-df ./data/interim/neo4j-2024v1/gpt-4.1/test-trajectories.csv
-      --output-df ./data/interim/evaluations/gpt-4.1/test.csv
+      --generations-df ./data/interim/generations/neo4j-2024v1/gpt-4.1/test-trajectories.csv
+      --predictions-df ./data/interim/predictions/neo4j-2024v1/gpt-4.1/test.csv
+      --ground-truths-df ./data/interim/predictions/neo4j-2024v1/test-ground-truths.csv
+      --output-df ./data/interim/evaluations/neo4j-2024v1/gpt-4.1/test.csv
     deps:
+      - rsc/nltk_data
       - data/raw/neo4j-2024v1/test-00000-of-00001.parquet
-      - data/interim/neo4j-2024v1/gpt-4.1/test-trajectories.csv
+      - data/interim/generations/neo4j-2024v1/gpt-4.1/test-trajectories.csv
+      - data/interim/predictions/neo4j-2024v1/gpt-4.1/test.csv
+      - data/interim/predictions/neo4j-2024v1/test-ground-truths.csv
       - src/experiments/evaluate.py
     outs:
-      - data/interim/evaluations/gpt-4.1/test.csv:
-          persist: true
+      - data/interim/evaluations/neo4j-2024v1/gpt-4.1/test.csv
   
   evaluate-test-gemma-2-9b-it-generation:
     cmd: >-
       python -m experiments.evaluate
       --dataset-df ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet
-      --predictions-df ./data/interim/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv
-      --output-df ./data/interim/evaluations/gemma-2-9b-it/test.csv
+      --generations-df ./data/interim/generations/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv
+      --predictions-df ./data/interim/predictions/neo4j-2024v1/gemma-2-9b-it/test.csv
+      --ground-truths-df ./data/interim/predictions/neo4j-2024v1/test-ground-truths.csv
+      --output-df ./data/interim/evaluations/neo4j-2024v1/gemma-2-9b-it/test.csv
     deps:
+      - rsc/nltk_data
       - data/raw/neo4j-2024v1/test-00000-of-00001.parquet
-      - data/interim/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv
+      - data/interim/generations/neo4j-2024v1/gemma-2-9b-it/test-cyphers.csv
+      - data/interim/predictions/neo4j-2024v1/gemma-2-9b-it/test.csv
+      - data/interim/predictions/neo4j-2024v1/test-ground-truths.csv
       - src/experiments/evaluate.py
     outs:
-      - data/interim/evaluations/gemma-2-9b-it/test.csv:
-          persist: true
+      - data/interim/evaluations/neo4j-2024v1/gemma-2-9b-it/test.csv
   
   evaluate-test-llama3.1-8b-generation:
     cmd: >-
       python -m experiments.evaluate
       --dataset-df ./data/raw/neo4j-2024v1/test-00000-of-00001.parquet
-      --predictions-df ./data/interim/neo4j-2024v1/llama3.1-8b/test-cyphers.csv
-      --output-df ./data/interim/evaluations/llama3.1-8b/test.csv
+      --generations-df ./data/interim/generations/neo4j-2024v1/llama3.1-8b/test-cyphers.csv
+      --predictions-df ./data/interim/predictions/neo4j-2024v1/llama3.1-8b/test.csv
+      --ground-truths-df ./data/interim/predictions/neo4j-2024v1/test-ground-truths.csv
+      --output-df ./data/interim/evaluations/neo4j-2024v1/llama3.1-8b/test.csv
     deps:
+      - rsc/nltk_data
       - data/raw/neo4j-2024v1/test-00000-of-00001.parquet
-      - data/interim/neo4j-2024v1/llama3.1-8b/test-cyphers.csv
+      - data/interim/generations/neo4j-2024v1/llama3.1-8b/test-cyphers.csv
+      - data/interim/predictions/neo4j-2024v1/llama3.1-8b/test.csv
+      - data/interim/predictions/neo4j-2024v1/test-ground-truths.csv
       - src/experiments/evaluate.py
     outs:
-      - data/interim/evaluations/llama3.1-8b/test.csv:
-          persist: true
+      - data/interim/evaluations/neo4j-2024v1/llama3.1-8b/test.csv
